@@ -1,12 +1,27 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useFormState, useFormStatus } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { signIn } from './actions';
 
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      id="login-submit"
+      type="submit"
+      className="w-full mt-1"
+      size="lg"
+      loading={pending}
+    >
+      Sign in
+    </Button>
+  );
+}
+
 export default function LoginPage() {
-  const [error, formAction, isPending] = useActionState(signIn, null);
+  const [error, formAction] = useFormState(signIn, null);
 
   return (
     <div className="w-full max-w-sm">
@@ -63,7 +78,6 @@ export default function LoginPage() {
             autoCapitalize="none"
             spellCheck={false}
             required
-            disabled={isPending}
           />
 
           <Input
@@ -74,18 +88,9 @@ export default function LoginPage() {
             autoComplete="current-password"
             showPasswordToggle
             required
-            disabled={isPending}
           />
 
-          <Button
-            id="login-submit"
-            type="submit"
-            className="w-full mt-1"
-            size="lg"
-            loading={isPending}
-          >
-            Sign in
-          </Button>
+          <SubmitButton />
         </form>
       </div>
 
