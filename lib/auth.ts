@@ -28,7 +28,12 @@ export async function getUser(): Promise<AuthUser | null> {
     .eq('id', user.id)
     .single();
 
-  if (profileError || !profile) return null;
+  if (profileError || !profile) {
+    console.error('Profile missing or error:', profileError);
+    // User is auth'd but their profile row is missing. 
+    // Redirect to a specific error page instead of /login to avoid loops with middleware.
+    redirect('/unauthorized');
+  }
 
   return {
     id: user.id,
