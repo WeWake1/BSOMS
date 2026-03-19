@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --min-tap-target: 44px;
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .min-tap {
+    min-height: var(--min-tap-target);
+    min-width: var(--min-tap-target);
+  }
+  .pb-safe {
+    padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
+  }
+}
+
