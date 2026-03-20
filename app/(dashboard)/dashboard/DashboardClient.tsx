@@ -6,8 +6,10 @@ import { StatusCards } from '@/components/dashboard/status-cards';
 import { FilterBar } from '@/components/dashboard/filter-bar';
 import { OrderCard } from '@/components/dashboard/order-card';
 import { Button } from '@/components/ui/button';
+import { OrderDetailSheet } from '@/components/dashboard/order-detail-sheet';
+import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
 import type { AuthUser } from '@/lib/auth';
-import type { OrderStatus } from '@/types/database';
+import type { OrderStatus, OrderWithCategory } from '@/types/database';
 
 export function DashboardClient({ user }: { user: AuthUser }) {
   const { orders, categories, loading, error } = useOrders();
@@ -15,6 +17,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | 'All'>('All');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+
+  const activeOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
 
   const isAdmin = user.profile.role === 'admin';
 
@@ -91,7 +97,13 @@ export function DashboardClient({ user }: { user: AuthUser }) {
              Loading orders...
           </div>
         ) : filteredOrders.length > 0 ? (
-          filteredOrders.map(order => <OrderCard key={order.id} order={order} />)
+          filteredOrders.map(order => (
+            <OrderCard 
+              key={order.id} 
+              order={order} 
+              onClick={() => setSelectedOrderId(order.id)} 
+            />
+          ))
         ) : !loading ? (
           <div className="py-16 bg-white rounded-3xl border border-gray-100 border-dashed text-center mt-2 flex flex-col items-center">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gray-50 mb-4 text-gray-400">
@@ -112,12 +124,27 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       {isAdmin && (
         <button
           className="fixed bottom-safe right-4 sm:right-auto sm:left-1/2 sm:ml-[16.5rem] bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg shadow-indigo-200 flex items-center justify-center transition-transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 z-50 min-tap mb-4"
-          onClick={() => console.log('Phase 4 Add Order')}
+          onClick={() => { setSelectedOrderId(null); setIsFormOpen(true); }}
           aria-label="Add Order"
         >
           <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
       )}
+
+      <OrderDetailSheet 
+        order={activeOrder}
+        isOpen={!!selectedOrderId && !isFormOpen}
+        onClose={() => setSelectedOrderId(null)}
+        isAdmin={isAdmin}
+        onEdit={() => setIsFormOpen(true)}
+      />
+
+      <OrderFormSheet
+        order={activeOrder}
+        categories={categories}
+        isOpen={isFormOpen}
+        onClose={() => { setIsFormOpen(false); setSelectedOrderId(null); }}
+      />
     </div>
   );
 }

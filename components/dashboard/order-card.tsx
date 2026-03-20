@@ -4,16 +4,14 @@ import type { OrderWithCategory } from '@/types/database';
 
 interface OrderCardProps {
   order: OrderWithCategory;
+  onClick?: () => void;
 }
 
-export function OrderCard({ order }: OrderCardProps) {
+export function OrderCard({ order, onClick }: OrderCardProps) {
   return (
     <button
       className="w-full bg-white rounded-2xl border border-gray-200 p-4 text-left hover:shadow-md hover:border-indigo-200 transition-all active:scale-[0.99] min-tap flex flex-col gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-      onClick={() => {
-        // Phase 4: Open Bottom Sheet
-        console.log('Open order:', order.id);
-      }}
+      onClick={onClick}
     >
       <div className="flex justify-between items-start gap-4">
         <div>
