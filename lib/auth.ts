@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import type { Profile } from '@/types/database';
 
 export interface AuthUser {
@@ -22,7 +22,9 @@ export async function getUser(): Promise<AuthUser | null> {
 
   if (authError || !user) return null;
 
-  const { data: profile, error: profileError } = await supabase
+  const serviceClient = createServiceClient();
+
+  const { data: profile, error: profileError } = await serviceClient
     .from('profiles')
     .select('*')
     .eq('id', user.id)
@@ -30,9 +32,9 @@ export async function getUser(): Promise<AuthUser | null> {
 
   if (profileError || !profile) {
     console.error('Profile missing or error:', profileError);
-    // User is auth'd but their profile row is missing. 
-    // Redirect to a specific error page instead of /login to avoid loops with middleware.
-    redirect('/unauthorized');
+    // User is auth'd but their profile row is missing or blocked by RLS.
+    const errorMsg = profileError?.message || `No DB row found for ${user.id}`;
+    redirect(`/unauthorized?error=${encodeURIComponent(errorMsg)}`);
   }
 
   return {

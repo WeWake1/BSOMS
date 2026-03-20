@@ -1,7 +1,13 @@
 import { signOut } from '@/app/(auth)/login/actions';
 import { Button } from '@/components/ui/button';
 
-export default function UnauthorizedPage() {
+export default function UnauthorizedPage({
+  searchParams,
+}: {
+  searchParams: { error?: string };
+}) {
+  const errorMessage = searchParams.error;
+
   return (
     <div className="w-full max-w-md text-center">
       <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/80 border border-gray-100 p-8">
@@ -15,9 +21,15 @@ export default function UnauthorizedPage() {
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
           Profile Access Error
         </h1>
-        <p className="text-sm font-medium text-gray-500 mb-6">
+        <p className="text-sm font-medium text-gray-500 mb-4">
           You are signed in, but your user account is missing a corresponding row in the <strong>profiles</strong> table.
         </p>
+
+        {errorMessage && (
+          <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-xs font-mono text-red-700 text-left break-words">
+            <strong>Error details:</strong> {errorMessage}
+          </div>
+        )}
         
         <div className="bg-gray-50 rounded-xl p-4 text-left text-sm text-gray-700 mb-8 border border-gray-100">
           <p className="font-semibold mb-2">How to fix this as Admin:</p>
