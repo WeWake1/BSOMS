@@ -8,6 +8,7 @@ import { OrderCard } from '@/components/dashboard/order-card';
 import { Button } from '@/components/ui/button';
 import { OrderDetailSheet } from '@/components/dashboard/order-detail-sheet';
 import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
+import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
 import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategory } from '@/types/database';
 
@@ -19,6 +20,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | 'All'>('All');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const activeOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
 
@@ -63,10 +65,21 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Orders</h1>
           <p className="text-sm font-medium text-gray-500 mt-1">Live overview of workflow</p>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => console.log('PDF export Phase 6')}>
-          <svg className="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10.4 12.6a2 2 0 1 1 3 3L8 21l-4 1 1-4Z"/><path d="m18 16-3-3"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
-          Export PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={() => console.log('PDF export Phase 6')}>
+            <svg className="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10.4 12.6a2 2 0 1 1 3 3L8 21l-4 1 1-4Z"/><path d="m18 16-3-3"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2-2V8z"/></svg>
+            Export PDF
+          </Button>
+          <button 
+            onClick={() => setIsSettingsOpen(true)}
+            className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 min-tap border border-indigo-100"
+            aria-label="User Settings"
+          >
+             <span className="font-bold text-sm tracking-tight">
+               {user.profile.full_name ? user.profile.full_name[0].toUpperCase() : (user.email?.[0]?.toUpperCase() || 'U')}
+             </span>
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -144,6 +157,13 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         categories={categories}
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); setSelectedOrderId(null); }}
+      />
+
+      <SettingsDrawer
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        user={user}
+        categories={categories}
       />
     </div>
   );

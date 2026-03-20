@@ -52,8 +52,8 @@ export function useOrders() {
 
     fetchInitialData();
 
-    // Set up Realtime Subscription for the Dashboard
-    const channel = supabase
+    // Set up Realtime Subscription for Orders
+    const orderChannel = supabase
       .channel('public:orders')
       .on(
         'postgres_changes',
@@ -91,9 +91,28 @@ export function useOrders() {
       )
       .subscribe();
 
+    // Set up Realtime Subscription for Categories
+    const categoryChannel = supabase
+      .channel('public:categories')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'categories' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setCategories(prev => [...prev, payload.new as Category].sort((a, b) => a.name.localeCompare(b.name)));
+          } else if (payload.eventType === 'UPDATE') {
+            setCategories(prev => prev.map(c => c.id === (payload.new as Category).id ? (payload.new as Category) : c).sort((a, b) => a.name.localeCompare(b.name)));
+          } else if (payload.eventType === 'DELETE') {
+            setCategories(prev => prev.filter(c => c.id !== (payload.old as any).id));
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       mounted = false;
-      supabase.removeChannel(channel);
+      supabase.removeChannel(orderChannel);
+      supabase.removeChannel(categoryChannel);
     };
   }, [supabase]);
 
