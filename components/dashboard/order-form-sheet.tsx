@@ -73,7 +73,11 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Show local preview immediately
+    const localPreview = URL.createObjectURL(file);
+    setPhotoUrl(localPreview);
     setPhotoUploading(true);
+
     try {
       const fileExt = file.name.split('.').pop() || 'jpg';
       const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
@@ -86,8 +90,11 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('order-photos').getPublicUrl(filePath);
+      URL.revokeObjectURL(localPreview);
       setPhotoUrl(data.publicUrl);
     } catch (err: any) {
+      URL.revokeObjectURL(localPreview);
+      setPhotoUrl(null);
       alert('Photo upload failed: ' + err.message);
     } finally {
       setPhotoUploading(false);

@@ -133,10 +133,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         ) : null}
       </div>
 
-      {/* FAB (Admin Only) */}
+      {/* FAB (Admin Only) — fixed to viewport, always bottom-right */}
       {isAdmin && (
         <button
-          className="fixed bottom-safe right-4 sm:right-auto sm:left-1/2 sm:ml-[16.5rem] bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg shadow-indigo-200 flex items-center justify-center transition-transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 z-50 min-tap mb-4"
+          className="fixed bottom-6 right-6 bg-indigo-600 text-white w-14 h-14 rounded-full shadow-xl shadow-indigo-300/50 flex items-center justify-center transition-transform hover:scale-105 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 z-40 min-tap"
           onClick={() => { setSelectedOrderId(null); setIsFormOpen(true); }}
           aria-label="Add Order"
         >

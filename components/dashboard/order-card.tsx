@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/utils';
+import { getCategoryColor } from '@/lib/category-colors';
 import type { OrderWithCategory } from '@/types/database';
 
 interface OrderCardProps {
@@ -8,6 +9,8 @@ interface OrderCardProps {
 }
 
 export function OrderCard({ order, onClick }: OrderCardProps) {
+  const catColor = order.categories ? getCategoryColor(order.categories.id) : null;
+
   return (
     <button
       className="w-full bg-white rounded-2xl border border-gray-200 p-4 text-left hover:shadow-md hover:border-indigo-200 transition-all active:scale-[0.99] min-tap flex flex-col gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
@@ -19,9 +22,15 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
             <span className="text-[17px] font-bold text-gray-900 tracking-tight group-hover:text-indigo-700 transition-colors">
               {order.order_no}
             </span>
-            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 px-2 py-0.5 bg-gray-100 rounded-md">
-              {order.categories?.name || 'Uncategorized'}
-            </span>
+            {order.categories && catColor ? (
+              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${catColor.bg} ${catColor.text} ${catColor.border}`}>
+                {order.categories.name}
+              </span>
+            ) : (
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 px-2 py-0.5 bg-gray-100 rounded-md">
+                Uncategorized
+              </span>
+            )}
           </div>
           <h3 className="text-[15px] font-semibold text-gray-700 line-clamp-1">
             {order.customer_name}
