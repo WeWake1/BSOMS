@@ -3,6 +3,7 @@ export type OrderStatus = 'Pending' | 'In Progress' | 'Packing' | 'Dispatched';
 export interface Category {
   id: string;
   name: string;
+  color: string | null;
   created_at: string;
 }
 

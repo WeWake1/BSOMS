@@ -9,7 +9,7 @@ interface OrderCardProps {
 }
 
 export function OrderCard({ order, onClick }: OrderCardProps) {
-  const catColor = order.categories ? getCategoryColor(order.categories.id) : null;
+  const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
 
   return (
     <button
