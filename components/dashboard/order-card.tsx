@@ -13,40 +13,40 @@ export function OrderCard({ order, onClick }: OrderCardProps) {
 
   return (
     <button
-      className="w-full bg-white rounded-2xl border border-gray-200 p-4 text-left hover:shadow-md hover:border-indigo-200 transition-all active:scale-[0.99] min-tap flex flex-col gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+      className="w-full bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 p-4 text-left hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-500/50 transition-all active:scale-[0.99] min-tap flex flex-col gap-3 group focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950"
       onClick={onClick}
     >
       <div className="flex justify-between items-start gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[17px] font-bold text-gray-900 tracking-tight group-hover:text-indigo-700 transition-colors">
+            <span className="text-[17px] font-bold text-gray-900 dark:text-white tracking-tight group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
               {order.order_no}
             </span>
             {order.categories && catColor ? (
-              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${catColor.bg} ${catColor.text} ${catColor.border}`}>
+              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${catColor.bg} ${catColor.text} ${catColor.border} dark:bg-opacity-20 dark:border-opacity-30`}>
                 {order.categories.name}
               </span>
             ) : (
-              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 px-2 py-0.5 bg-gray-100 rounded-md">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 px-2 py-0.5 bg-gray-100 dark:bg-slate-800 rounded-md">
                 Uncategorized
               </span>
             )}
           </div>
-          <h3 className="text-[15px] font-semibold text-gray-700 line-clamp-1">
+          <h3 className="text-[15px] font-semibold text-gray-700 dark:text-slate-300 line-clamp-1">
             {order.customer_name}
           </h3>
         </div>
         <Badge status={order.status} className="whitespace-nowrap shrink-0 mt-0.5 shadow-sm" />
       </div>
 
-      <div className="flex justify-between items-end border-t border-gray-100 pt-3 mt-1">
+      <div className="flex justify-between items-end border-t border-gray-100 dark:border-slate-800 pt-3 mt-1 transition-colors">
         <div className="flex flex-col">
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Due Date</span>
-          <span className="text-[13px] font-bold text-gray-800">{formatDate(order.due_date)}</span>
+          <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">Due Date</span>
+          <span className="text-[13px] font-bold text-gray-800 dark:text-slate-200">{formatDate(order.due_date)}</span>
         </div>
         <div className="flex items-center gap-1.5">
-           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Qty</span>
-           <div className="text-[13px] font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded-lg">
+           <span className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest">Qty</span>
+           <div className="text-[13px] font-bold text-gray-900 dark:text-white bg-gray-100 dark:bg-slate-800 px-2 py-1 rounded-lg transition-colors">
              {order.qty}
            </div>
         </div>

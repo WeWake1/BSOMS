@@ -17,12 +17,12 @@ export function formatDate(date: string | null | undefined): string {
 
 export function getStatusColor(status: OrderStatus | string): string {
   const colors: Record<string, string> = {
-    'Pending': 'bg-amber-100 text-amber-800 border-amber-200',
-    'In Progress': 'bg-blue-100 text-blue-800 border-blue-200',
-    'Packing': 'bg-purple-100 text-purple-800 border-purple-200',
-    'Dispatched': 'bg-green-100 text-green-800 border-green-200',
+    'Pending': 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+    'In Progress': 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+    'Packing': 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400 border-purple-200 dark:border-purple-800',
+    'Dispatched': 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800',
   };
-  return colors[status] ?? 'bg-gray-100 text-gray-800 border-gray-200';
+  return colors[status] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
 }
 
 export function getStatusCardColor(status: OrderStatus | string): {
@@ -33,29 +33,29 @@ export function getStatusCardColor(status: OrderStatus | string): {
 } {
   const map: Record<string, { bg: string; text: string; border: string; icon: string }> = {
     'Pending': {
-      bg: 'bg-amber-50',
-      text: 'text-amber-900',
-      border: 'border-amber-200',
-      icon: 'text-amber-500',
+      bg: 'bg-amber-50 dark:bg-amber-900/20',
+      text: 'text-amber-900 dark:text-amber-400',
+      border: 'border-amber-200 dark:border-amber-800',
+      icon: 'text-amber-500 dark:text-amber-400',
     },
     'In Progress': {
-      bg: 'bg-blue-50',
-      text: 'text-blue-900',
-      border: 'border-blue-200',
-      icon: 'text-blue-500',
+      bg: 'bg-blue-50 dark:bg-blue-900/20',
+      text: 'text-blue-900 dark:text-blue-400',
+      border: 'border-blue-200 dark:border-blue-800',
+      icon: 'text-blue-500 dark:text-blue-400',
     },
     'Packing': {
-      bg: 'bg-purple-50',
-      text: 'text-purple-900',
-      border: 'border-purple-200',
-      icon: 'text-purple-500',
+      bg: 'bg-purple-50 dark:bg-purple-900/20',
+      text: 'text-purple-900 dark:text-purple-400',
+      border: 'border-purple-200 dark:border-purple-800',
+      icon: 'text-purple-500 dark:text-purple-400',
     },
     'Dispatched': {
-      bg: 'bg-green-50',
-      text: 'text-green-900',
-      border: 'border-green-200',
-      icon: 'text-green-500',
+      bg: 'bg-green-50 dark:bg-green-900/20',
+      text: 'text-green-900 dark:text-green-400',
+      border: 'border-green-200 dark:border-green-800',
+      icon: 'text-green-500 dark:text-green-400',
     },
   };
-  return map[status] ?? { bg: 'bg-gray-50', text: 'text-gray-900', border: 'border-gray-200', icon: 'text-gray-500' };
+  return map[status] ?? { bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-900 dark:text-gray-200', border: 'border-gray-200 dark:border-gray-700', icon: 'text-gray-500 dark:text-gray-400' };
 }
