@@ -1,4 +1,5 @@
 # OrderFlow
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FWeWake1%2FBSOMS&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY)
 
 Internal order management system for manufacturing/fulfillment companies. Enables ~10 team members to track real-time order status from their phones.
 
