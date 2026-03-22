@@ -10,6 +10,8 @@ import { OrderDetailSheet } from '@/components/dashboard/order-detail-sheet';
 import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
 import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
 import { generateOrderReportPDF } from '@/lib/pdf-export';
+import { createClient } from '@/lib/supabase/client';
+import toast from 'react-hot-toast';
 import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategory } from '@/types/database';
 
@@ -26,6 +28,17 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const activeOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
 
   const isAdmin = user.profile.role === 'admin';
+  const [supabase] = useState(() => createClient());
+
+  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    // @ts-ignore
+    const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
+    if (error) {
+      toast.error('Failed to update status');
+    } else {
+      toast.success(`Status moved to ${newStatus}`);
+    }
+  };
 
   const counts = useMemo(() => {
     return {
@@ -115,6 +128,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             <OrderCard 
               key={order.id} 
               order={order} 
+              isAdmin={isAdmin}
+              onStatusChange={(status) => handleStatusChange(order.id, status)}
               onClick={() => setSelectedOrderId(order.id)} 
             />
           ))

@@ -1,15 +1,17 @@
 import { Badge } from '@/components/ui/badge';
 import { formatDate, cn } from '@/lib/utils';
 import { getCategoryColor } from '@/lib/category-colors';
-import type { OrderWithCategory } from '@/types/database';
+import type { OrderStatus, OrderWithCategory } from '@/types/database';
 
 interface OrderCardProps {
   order: OrderWithCategory;
+  isAdmin?: boolean;
+  onStatusChange?: (status: OrderStatus) => void;
   onClick?: () => void;
   className?: string;
 }
 
-export function OrderCard({ order, onClick, className }: OrderCardProps) {
+export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
 
   return (
@@ -36,11 +38,34 @@ export function OrderCard({ order, onClick, className }: OrderCardProps) {
               </span>
             )}
           </div>
-          <h3 className="font-bold text-base truncate pr-2">
+          <h3 className="font-bold text-base truncate pr-2 text-foreground">
             {order.customer_name}
           </h3>
+          {(order.length || order.width) && (
+             <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+               Size: {order.length || '-'} × {order.width || '-'}
+             </p>
+          )}
         </div>
-        <Badge status={order.status} className="whitespace-nowrap shrink-0 mt-0.5 shadow-sm" />
+        <div className="relative shrink-0 mt-0.5">
+          <Badge status={order.status} className="whitespace-nowrap shadow-sm" />
+          {isAdmin && onStatusChange && (
+            <select
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              value={order.status}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                onStatusChange(e.target.value as any);
+              }}
+            >
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Packing">Packing</option>
+              <option value="Dispatched">Dispatched</option>
+            </select>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-between items-end border-t border-border pt-3 mt-1 transition-colors">
