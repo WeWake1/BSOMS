@@ -9,7 +9,7 @@ export default async function DashboardLayout({
   await requireAuth();
 
   return (
-    <div className="min-h-dvh bg-gray-50">
+    <div className="min-h-dvh bg-background text-foreground transition-colors duration-200">
       {children}
     </div>
   );

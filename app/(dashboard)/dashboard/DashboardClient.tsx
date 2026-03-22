@@ -63,8 +63,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       {/* TopBar */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">Orders</h1>
-          <p className="text-sm font-medium text-gray-500 dark:text-slate-400 mt-1">Live overview of workflow</p>
+          <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Orders</h1>
+          <p className="text-sm font-medium text-muted-foreground mt-1">Live overview of workflow</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={() => generateOrderReportPDF(filteredOrders)} disabled={filteredOrders.length === 0}>
@@ -119,12 +119,12 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             />
           ))
         ) : !loading ? (
-          <div className="py-16 bg-white dark:bg-slate-900/50 rounded-3xl border border-gray-100 dark:border-slate-800 border-dashed text-center mt-2 flex flex-col items-center">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gray-50 dark:bg-slate-800 mb-4 text-gray-400 dark:text-slate-500">
-               <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            </div>
-            <h3 className="text-base font-bold text-gray-900 dark:text-white tracking-tight">No orders found</h3>
-            <p className="text-sm font-medium text-gray-500 dark:text-slate-400 mt-1">Try adjusting your filters.</p>
+          <div className="py-12 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl mt-4">
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </div>
+          <p className="font-medium text-foreground">No orders found</p>
+          <p className="text-sm mt-1">Try adjusting your filters or search query.</p>
             {(searchQuery || selectedCategory !== 'All' || selectedStatus !== 'All') && (
               <Button variant="ghost" size="sm" onClick={handleClearFilters} className="mt-4">
                 Clear Filters

@@ -1,11 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
 });
 
 export const metadata: Metadata = {
@@ -28,11 +27,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} antialiased bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-white min-h-dvh overflow-x-hidden transition-colors duration-200`}
+        className={`${plusJakarta.variable} font-sans transition-colors duration-200`}
       >
         {children}
       </body>
     </html>
   );
 }
-

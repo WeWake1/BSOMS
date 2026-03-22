@@ -45,23 +45,23 @@ export default function LoginPage() {
             <line x1="9" y1="16" x2="13" y2="16" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+        <h1 className="text-2xl font-bold text-foreground tracking-tight">
           OrderFlow
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Sign in to your account
         </p>
       </div>
 
       {/* Login card */}
-      <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/80 border border-gray-100 p-6">
+      <div className="bg-card text-card-foreground rounded-2xl shadow-xl border border-border p-6">
         {/* Inline error message */}
         {error && (
           <div
             id="login-error"
             role="alert"
             aria-live="polite"
-            className="mb-5 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"
+            className="mb-5 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive"
           >
             {error}
           </div>

@@ -24,7 +24,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 
     return (
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={id} className="text-sm font-medium text-gray-700">
+        <label htmlFor={id} className="text-sm font-medium text-foreground">
           {label}
         </label>
         <div className="relative">
@@ -33,12 +33,12 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             id={id}
             type={inputType}
             className={cn(
-              'w-full h-11 px-3.5 rounded-xl border bg-white text-gray-900 text-sm',
-              'placeholder:text-gray-400',
+              'w-full h-11 px-3.5 rounded-xl border bg-card text-foreground text-sm',
+              'placeholder:text-muted-foreground',
               'transition-all duration-150',
-              'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent',
-              'disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed',
-              error ? 'border-red-400 focus:ring-red-400' : 'border-gray-300',
+              'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
+              'disabled:opacity-50 disabled:cursor-not-allowed',
+              error ? 'border-destructive focus:ring-destructive' : 'border-border',
               showPasswordToggle && 'pr-11',
               className
             )}
@@ -49,7 +49,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
               type="button"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
               tabIndex={-1}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 hover:text-gray-600 focus:outline-none"
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground hover:text-foreground focus:outline-none"
               onClick={() => setShowPassword((v) => !v)}
             >
               {showPassword ? (
@@ -83,10 +83,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
         </div>
         {hint && !error && (
-          <p className="text-xs text-gray-500">{hint}</p>
+          <p className="text-xs text-muted-foreground">{hint}</p>
         )}
         {error && (
-          <p className="text-xs text-red-600" role="alert">
+          <p className="text-xs text-destructive" role="alert">
             {error}
           </p>
         )}

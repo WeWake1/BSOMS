@@ -5,6 +5,44 @@
 :root {
   --min-tap-target: 44px;
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+
+  --background: 210 40% 98%;      /* slate-50 */
+  --foreground: 222.2 84% 4.9%;   /* slate-950 */
+
+  --card: 0 0% 100%;              /* white */
+  --card-foreground: 222.2 84% 4.9%;
+  
+  --border: 214.3 31.8% 91.4%;    /* slate-200 */
+  --input: 214.3 31.8% 91.4%;
+  --ring: 238.7 83.5% 66.7%;
+  --primary: 238.7 83.5% 66.7%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+}
+
+html.dark {
+  --background: 222.2 84% 4.9%;   /* slate-950 */
+  --foreground: 210 40% 98%;      /* slate-50 */
+
+  --card: 217.2 32.6% 17.5%;      /* slate-800 */
+  --card-foreground: 210 40% 98%;
+  
+  --border: 217.2 32.6% 17.5%;    /* slate-800 */
+  --input: 217.2 32.6% 17.5%;
+  --ring: 238.7 83.5% 66.7%;
+  --primary: 238.7 83.5% 66.7%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
 }
 
 * {
@@ -14,6 +52,10 @@
 body {
   min-height: 100dvh;
   overflow-x: hidden;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer utilities {
