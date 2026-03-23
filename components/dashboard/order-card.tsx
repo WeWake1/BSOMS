@@ -84,3 +84,57 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }
     </button>
   );
 }
+
+export function OrderListItem({ order, isAdmin, onStatusChange, onClick, className }: OrderCardProps) {
+  const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
+
+  return (
+    <tr 
+      onClick={onClick}
+      className={cn(
+        "group hover:bg-muted/30 transition-colors cursor-pointer text-[14px]",
+        className
+      )}
+    >
+      <td className="px-6 py-3.5 align-middle">
+        <div className="flex items-center gap-2">
+          <div className={cn("w-2 h-2 rounded-full shrink-0", catColor ? catColor.dot : "bg-gray-200")} />
+          <span className="font-semibold text-foreground text-[14px]">{order.order_no}</span>
+        </div>
+      </td>
+      <td className="px-6 py-3.5 align-middle">
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground truncate max-w-[200px] sm:max-w-xs">{order.customer_name}</span>
+          <span className="text-xs text-muted-foreground">{order.categories?.name || 'Uncategorized'}</span>
+        </div>
+      </td>
+      <td className="px-6 py-3.5 align-middle text-muted-foreground font-medium">
+        {(order.length || order.width) ? `${order.length||'-'}×${order.width||'-'}` : '-'}
+      </td>
+      <td className="px-6 py-3.5 align-middle text-right font-bold">
+        {order.qty}
+      </td>
+      <td className="px-6 py-3.5 align-middle text-center w-[120px]">
+        <div className="relative inline-block" onClick={(e) => isAdmin ? null : e.stopPropagation()}>
+          <Badge status={order.status} className="whitespace-nowrap shadow-sm text-[11px] py-1 pointer-events-none" />
+          {isAdmin && onStatusChange && (
+            <select
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              value={order.status}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => {
+                e.stopPropagation();
+                onStatusChange(e.target.value as any);
+              }}
+            >
+              <option value="Pending">Pending</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Packing">Packing</option>
+              <option value="Dispatched">Dispatched</option>
+            </select>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}

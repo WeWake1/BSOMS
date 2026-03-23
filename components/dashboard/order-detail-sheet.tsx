@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Drawer } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,24 @@ interface OrderDetailSheetProps {
 export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: OrderDetailSheetProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [photoExpanded, setPhotoExpanded] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const supabase = createClient();
+
+  useEffect(() => {
+    if (order?.photo_url && isOpen) {
+      if (order.photo_url.startsWith('http')) {
+        setSignedUrl(order.photo_url); // Legacy backward compatibility
+      } else {
+        supabase.storage.from('order-photos')
+          .createSignedUrl(order.photo_url, 3600)
+          .then(({ data }) => {
+            if (data) setSignedUrl(data.signedUrl);
+          });
+      }
+    } else {
+      setSignedUrl(null);
+    }
+  }, [order?.photo_url, isOpen, supabase]);
 
   if (!order) return null;
 
@@ -51,13 +68,13 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
             <Badge status={order.status} className="mt-1 shadow-sm text-sm px-3 py-1.5" />
           </div>
 
-          {order.photo_url && (
+          {signedUrl && (
             <button 
               className="w-full h-48 bg-gray-100 rounded-2xl overflow-hidden relative active:scale-[0.98] transition-transform min-tap group"
               onClick={() => setPhotoExpanded(true)}
             >
               <img 
-                src={order.photo_url} 
+                src={signedUrl} 
                 alt={`Photo for order ${order.order_no}`}
                 className="w-full h-full object-cover"
               />
@@ -117,13 +134,13 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
       </Drawer>
 
       {/* Full screen photo modal */}
-      {photoExpanded && order.photo_url && (
+      {photoExpanded && signedUrl && (
         <div 
           className="fixed inset-0 z-[60] bg-black flex items-center justify-center p-4 cursor-zoom-out"
           onClick={() => setPhotoExpanded(false)}
         >
           <img 
-            src={order.photo_url} 
+            src={signedUrl} 
             alt="Expanded view"
             className="w-full h-auto max-h-full object-contain"
           />

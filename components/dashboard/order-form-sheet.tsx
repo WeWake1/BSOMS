@@ -18,6 +18,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
   const [loading, setLoading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [localCategories, setLocalCategories] = useState<Category[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
@@ -49,7 +51,15 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setQty(order.qty.toString());
         setStatus(order.status);
         setDescription(order.description || '');
-        setPhotoUrl(order.photo_url || null);
+        setPhotoPath(order.photo_url || null);
+        if (order.photo_url) {
+          // Fetch secure signed URL for existing private photo
+          supabase.storage.from('order-photos').createSignedUrl(order.photo_url, 3600).then(({ data }) => {
+            if (data) setPhotoUrl(data.signedUrl);
+          });
+        } else {
+          setPhotoUrl(null);
+        }
       } else {
         const today = new Date().toISOString().split('T')[0];
         setOrderNo('');
@@ -63,10 +73,15 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setQty('1');
         setStatus('Pending');
         setDescription('');
+        setPhotoPath(null);
         setPhotoUrl(null);
       }
     }
   }, [isOpen, order, categories]);
+
+  const activeCategories = Array.from(
+    new Map([...categories, ...localCategories].map(c => [c.id, c])).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
 
   // 2. Photo Upload logic
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,12 +104,12 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('order-photos').getPublicUrl(filePath);
-      URL.revokeObjectURL(localPreview);
-      setPhotoUrl(data.publicUrl);
+      // Keep showing local URL for preview performance, just save path for DB
+      setPhotoPath(filePath); 
     } catch (err: any) {
       URL.revokeObjectURL(localPreview);
       setPhotoUrl(null);
+      setPhotoPath(null);
       alert('Photo upload failed: ' + err.message);
     } finally {
       setPhotoUploading(false);
@@ -118,6 +133,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
           .single();
           
         if (error) throw error;
+        setLocalCategories(prev => [...prev, data]);
         setCategoryId(data.id);
       } catch (err: any) {
         alert('Failed to add category: ' + err.message);
@@ -145,7 +161,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       qty: parseInt(qty, 10),
       status,
       description,
-      photo_url: photoUrl,
+      photo_url: photoPath,
     };
 
     try {
@@ -182,7 +198,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
             required
           >
             <option value="" disabled>Select category...</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {activeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             <option value="NEW_CATEGORY" className="font-bold text-indigo-600">+ Add New Category</option>
           </select>
         </div>
@@ -235,8 +251,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
               <img src={photoUrl} alt="Order reference" className="w-full h-full object-cover" />
               <button 
                 type="button" 
-                onClick={() => { setPhotoUrl(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-tap"
+                onClick={() => { setPhotoUrl(null); setPhotoPath(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-tap"
               >
                 <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
               </button>
@@ -265,7 +281,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
             type="file" 
             ref={fileInputRef} 
             className="hidden" 
-            accept="image/*" 
+            accept="image/*, .heic" 
             onChange={handlePhotoUpload}
           />
         </div>

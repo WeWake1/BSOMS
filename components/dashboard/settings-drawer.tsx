@@ -224,12 +224,12 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
                             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${catColor.dot}`} />
                             <span className={`text-sm font-semibold px-2 py-0.5 rounded-md border ${catColor.bg} ${catColor.text} ${catColor.border} dark:bg-opacity-20 dark:border-opacity-30 truncate`}>{cat.name}</span>
                           </div>
-                          <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity ml-2 shrink-0">
-                            <button onClick={() => startEdit(cat)} className="p-1.5 text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-muted dark:hover:bg-slate-700 rounded-md transition-colors min-tap" aria-label="Edit">
-                              <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                          <div className="flex items-center gap-1.5 ml-3 shrink-0">
+                            <button onClick={() => startEdit(cat)} className="p-2 text-muted-foreground hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-800 dark:hover:text-indigo-400 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95" aria-label="Edit">
+                              <svg className="w-3.5 h-3.5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                             </button>
-                            <button onClick={() => deleteCategory(cat.id)} className="p-1.5 text-muted-foreground hover:text-red-600 dark:hover:text-red-400 hover:bg-muted dark:hover:bg-slate-700 rounded-md transition-colors min-tap" aria-label="Delete">
-                              <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            <button onClick={() => deleteCategory(cat.id)} className="p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 active:scale-95" aria-label="Delete">
+                              <svg className="w-3.5 h-3.5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                             </button>
                           </div>
                         </div>

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useOrders } from '@/hooks/useOrders';
 import { StatusCards } from '@/components/dashboard/status-cards';
 import { FilterBar } from '@/components/dashboard/filter-bar';
-import { OrderCard } from '@/components/dashboard/order-card';
+import { OrderCard, OrderListItem } from '@/components/dashboard/order-card';
 import { Button } from '@/components/ui/button';
 import { OrderDetailSheet } from '@/components/dashboard/order-detail-sheet';
 import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
@@ -22,6 +22,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | 'All'>('All');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'order-asc'>('date-desc');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
@@ -65,6 +67,28 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     });
   }, [orders, selectedStatus, selectedCategory, searchQuery]);
 
+  const sortedOrders = useMemo(() => {
+    let result = [...filteredOrders];
+    switch (sortBy) {
+      case 'date-asc':
+        result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        break;
+      case 'date-desc':
+        result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime() || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        break;
+      case 'name-asc':
+        result.sort((a, b) => a.customer_name.localeCompare(b.customer_name));
+        break;
+      case 'name-desc':
+        result.sort((a, b) => b.customer_name.localeCompare(a.customer_name));
+        break;
+      case 'order-asc':
+        result.sort((a, b) => a.order_no.localeCompare(b.order_no));
+        break;
+    }
+    return result;
+  }, [filteredOrders, sortBy]);
+
   const handleClearFilters = () => {
     setSearchQuery('');
     setSelectedCategory('All');
@@ -79,14 +103,15 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Orders</h1>
           <p className="text-sm font-medium text-muted-foreground mt-1">Live overview of workflow</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => generateOrderReportPDF(filteredOrders)} disabled={filteredOrders.length === 0}>
+        <div className="flex flex-wrap items-center gap-2 justify-end">
+          <Button variant="secondary" size="sm" onClick={() => generateOrderReportPDF(filteredOrders)} disabled={filteredOrders.length === 0} className="hidden sm:flex">
             <svg className="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export PDF
+            Export
           </Button>
+
           <button 
             onClick={() => setIsSettingsOpen(true)}
-            className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 min-tap border border-indigo-100"
+            className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 min-tap border border-indigo-100 ml-1"
             aria-label="User Settings"
           >
              <span className="font-bold text-sm tracking-tight">
@@ -114,25 +139,63 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         categories={categories}
         onClear={handleClearFilters}
         resultCount={filteredOrders.length}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
       />
 
+      <div className="sm:hidden mb-4 flex gap-2">
+          <Button variant="secondary" onClick={() => generateOrderReportPDF(filteredOrders)} disabled={filteredOrders.length === 0} className="px-3 shrink-0 w-full flex items-center justify-center">
+             <svg className="w-[18px] h-[18px] mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+             Export Report
+          </Button>
+      </div>
+
       {/* Orders List */}
-      <div className="mt-4 flex flex-col gap-3">
+      <div className={viewMode === 'card' ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-4 flex flex-col gap-0 rounded-2xl border border-border bg-card overflow-hidden shadow-sm"}>
         {loading && orders.length === 0 ? (
           <div className="py-16 text-center text-sm font-medium text-gray-500 flex flex-col items-center gap-3">
              <svg className="animate-spin w-8 h-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
              Loading orders...
           </div>
-        ) : filteredOrders.length > 0 ? (
-          filteredOrders.map(order => (
-            <OrderCard 
-              key={order.id} 
-              order={order} 
-              isAdmin={isAdmin}
-              onStatusChange={(status) => handleStatusChange(order.id, status)}
-              onClick={() => setSelectedOrderId(order.id)} 
-            />
-          ))
+        ) : sortedOrders.length > 0 ? (
+          viewMode === 'card' ? (
+            sortedOrders.map(order => (
+              <OrderCard 
+                key={order.id} 
+                order={order} 
+                isAdmin={isAdmin}
+                onStatusChange={(status) => handleStatusChange(order.id, status)}
+                onClick={() => setSelectedOrderId(order.id)} 
+              />
+            ))
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-muted/50 border-b border-border text-muted-foreground">
+                  <tr>
+                    <th className="px-6 py-3 font-semibold w-[150px]">Order #</th>
+                    <th className="px-6 py-3 font-semibold">Customer</th>
+                    <th className="px-6 py-3 font-semibold">Size</th>
+                    <th className="px-6 py-3 font-semibold text-right">Qty</th>
+                    <th className="px-6 py-3 font-semibold text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {sortedOrders.map(order => (
+                    <OrderListItem 
+                      key={order.id} 
+                      order={order} 
+                      isAdmin={isAdmin}
+                      onStatusChange={(status) => handleStatusChange(order.id, status)}
+                      onClick={() => setSelectedOrderId(order.id)} 
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : !loading ? (
           <div className="py-12 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl mt-4">
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
