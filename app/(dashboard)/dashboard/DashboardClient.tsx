@@ -26,6 +26,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [dispatchPromptOrder, setDispatchPromptOrder] = useState<string | null>(null);
+  const [dispatchPromptDate, setDispatchPromptDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   const activeOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
 
@@ -33,13 +35,31 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [supabase] = useState(() => createClient());
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+    if (newStatus === 'Dispatched') {
+      setDispatchPromptOrder(orderId);
+      setDispatchPromptDate(new Date().toISOString().split('T')[0]);
+      return;
+    }
+
     // @ts-ignore
-    const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
+    const { error } = await supabase.from('orders').update({ status: newStatus, dispatch_date: null }).eq('id', orderId);
     if (error) {
       toast.error('Failed to update status');
     } else {
       toast.success(`Status moved to ${newStatus}`);
     }
+  };
+
+  const handleDispatchConfirm = async () => {
+    if (!dispatchPromptOrder) return;
+    // @ts-ignore
+    const { error } = await supabase.from('orders').update({ status: 'Dispatched', dispatch_date: dispatchPromptDate }).eq('id', dispatchPromptOrder);
+    if (error) {
+      toast.error('Failed to update status to Dispatched');
+    } else {
+      toast.success('Order marked as Dispatched!');
+    }
+    setDispatchPromptOrder(null);
   };
 
   const counts = useMemo(() => {
@@ -244,6 +264,30 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         user={user}
         categories={categories}
       />
+
+      {/* Dispatch Date Modal */}
+      {dispatchPromptOrder && (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-card w-full max-w-sm rounded-2xl shadow-xl overflow-hidden p-5 border border-border">
+            <h3 className="font-bold text-lg mb-2">Set Dispatch Date</h3>
+            <p className="text-sm text-muted-foreground mb-4">Please specify when this order was dispatched to complete the update.</p>
+            <div className="flex flex-col gap-1.5 mb-6">
+              <label className="text-sm font-medium">Dispatch Date</label>
+              <input 
+                type="date" 
+                value={dispatchPromptDate} 
+                onChange={e => setDispatchPromptDate(e.target.value)} 
+                className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoFocus 
+              />
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="ghost" onClick={() => setDispatchPromptOrder(null)}>Cancel</Button>
+              <Button onClick={handleDispatchConfirm}>Confirm & Dispatch</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

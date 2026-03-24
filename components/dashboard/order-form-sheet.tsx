@@ -156,7 +156,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       category_id: categoryId,
       date,
       due_date: dueDate,
-      dispatch_date: dispatchDate || null,
+      dispatch_date: status === 'Dispatched' ? (dispatchDate || null) : null,
       length: length ? parseFloat(length) : null,
       width: width ? parseFloat(width) : null,
       qty: parseInt(qty, 10),
@@ -218,7 +218,11 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
           <Input label="Due Date" type="date" id="due_date" value={dueDate} onChange={e => setDueDate(e.target.value)} required />
         </div>
 
-        <Input label="Dispatch Date (Optional)" type="date" id="dispatch_date" value={dispatchDate} onChange={e => setDispatchDate(e.target.value)} />
+        {status === 'Dispatched' && (
+          <div className="animate-in slide-in-from-top-2 fade-in duration-200">
+            <Input label="Dispatch Date" type="date" id="dispatch_date" value={dispatchDate} onChange={e => setDispatchDate(e.target.value)} required />
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-4">
           <Input label="Length" type="number" step="0.01" id="length" placeholder="cm" value={length} onChange={e => setLength(e.target.value)} />
@@ -234,7 +238,12 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
                 key={s}
                 type="button"
                 className={`py-2 px-1 text-xs font-semibold rounded-lg transition-colors min-tap ${status === s ? 'bg-white shadow-sm text-indigo-700 border border-gray-200/50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
-                onClick={() => setStatus(s)}
+                onClick={() => {
+                  setStatus(s);
+                  if (s === 'Dispatched' && !dispatchDate) {
+                    setDispatchDate(new Date().toISOString().split('T')[0]);
+                  }
+                }}
               >
                 {s}
               </button>
