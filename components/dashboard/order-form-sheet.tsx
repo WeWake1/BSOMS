@@ -5,6 +5,7 @@ import { Drawer } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
+import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 import type { OrderWithCategory, Category, OrderStatus } from '@/types/database';
 
 interface OrderFormSheetProps {
@@ -191,16 +192,25 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
 
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-gray-700">Category<span className="text-red-500 ml-1">*</span></label>
-          <select 
-            value={categoryId} 
-            onChange={handleCategoryChange}
-            className="w-full h-11 px-3.5 rounded-xl border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-tap"
-            required
+          <Select
+            aria-label="Category"
+            isRequired
+            selectedKey={categoryId}
+            onSelectionChange={(k) => {
+              // Create synthetic event to match existing handleCategoryChange signature
+              handleCategoryChange({ target: { value: k as string } } as any);
+            }}
           >
-            <option value="" disabled>Select category...</option>
-            {activeCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            <option value="NEW_CATEGORY" className="font-bold text-indigo-600">+ Add New Category</option>
-          </select>
+            <SelectTrigger className="w-full h-11 px-3.5 rounded-xl border border-gray-300 bg-white text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPopover>
+              <SelectListBox>
+                {activeCategories.map(c => <SelectItem key={c.id} id={c.id}>{c.name}</SelectItem>)}
+                <SelectItem id="NEW_CATEGORY" className="font-bold text-indigo-600">+ Add New Category</SelectItem>
+              </SelectListBox>
+            </SelectPopover>
+          </Select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

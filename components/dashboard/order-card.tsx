@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { formatDate, cn } from '@/lib/utils';
 import { getCategoryColor } from '@/lib/category-colors';
+import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 import type { OrderStatus, OrderWithCategory } from '@/types/database';
 
 interface OrderCardProps {
@@ -47,23 +48,27 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }
              </p>
           )}
         </div>
-        <div className="relative shrink-0 mt-0.5">
-          <Badge status={order.status} className="whitespace-nowrap shadow-sm" />
-          {isAdmin && onStatusChange && (
-            <select
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              value={order.status}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                onStatusChange(e.target.value as any);
-              }}
+        <div className="relative shrink-0 mt-0.5" onClick={(e) => isAdmin ? e.preventDefault() : null}>
+          {isAdmin && onStatusChange ? (
+            <Select
+              selectedKey={order.status}
+              onSelectionChange={(k) => onStatusChange(k as any)}
+              aria-label="Change Status"
             >
-              <option value="Pending">Pending</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Packing">Packing</option>
-              <option value="Dispatched">Dispatched</option>
-            </select>
+              <SelectTrigger className="p-0 border-0 h-auto w-auto bg-transparent hover:bg-transparent data-[focus-visible]:ring-0 data-[focus-visible]:ring-offset-0 [&>svg]:hidden">
+                <Badge status={order.status} className="whitespace-nowrap shadow-sm cursor-pointer hover:opacity-90 transition-opacity" />
+              </SelectTrigger>
+              <SelectPopover className="w-[140px]">
+                <SelectListBox>
+                  <SelectItem id="Pending">Pending</SelectItem>
+                  <SelectItem id="In Progress">In Progress</SelectItem>
+                  <SelectItem id="Packing">Packing</SelectItem>
+                  <SelectItem id="Dispatched">Dispatched</SelectItem>
+                </SelectListBox>
+              </SelectPopover>
+            </Select>
+          ) : (
+            <Badge status={order.status} className="whitespace-nowrap shadow-sm" />
           )}
         </div>
       </div>
@@ -115,23 +120,27 @@ export function OrderListItem({ order, isAdmin, onStatusChange, onClick, classNa
         {order.qty}
       </td>
       <td className="px-6 py-3.5 align-middle text-center w-[120px]">
-        <div className="relative inline-block" onClick={(e) => isAdmin ? null : e.stopPropagation()}>
-          <Badge status={order.status} className="whitespace-nowrap shadow-sm text-[11px] py-1 pointer-events-none" />
-          {isAdmin && onStatusChange && (
-            <select
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              value={order.status}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => {
-                e.stopPropagation();
-                onStatusChange(e.target.value as any);
-              }}
+        <div className="relative inline-block" onClick={(e) => isAdmin ? e.stopPropagation() : null}>
+          {isAdmin && onStatusChange ? (
+            <Select
+              selectedKey={order.status}
+              onSelectionChange={(k) => onStatusChange(k as any)}
+              aria-label="Change Status"
             >
-              <option value="Pending">Pending</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Packing">Packing</option>
-              <option value="Dispatched">Dispatched</option>
-            </select>
+              <SelectTrigger className="p-0 border-0 h-auto w-auto bg-transparent hover:bg-transparent data-[focus-visible]:ring-0 data-[focus-visible]:ring-offset-0 [&>svg]:hidden">
+                <Badge status={order.status} className="whitespace-nowrap shadow-sm text-[11px] py-1 cursor-pointer hover:opacity-90 transition-opacity" />
+              </SelectTrigger>
+              <SelectPopover className="w-[140px]">
+                <SelectListBox>
+                  <SelectItem id="Pending">Pending</SelectItem>
+                  <SelectItem id="In Progress">In Progress</SelectItem>
+                  <SelectItem id="Packing">Packing</SelectItem>
+                  <SelectItem id="Dispatched">Dispatched</SelectItem>
+                </SelectListBox>
+              </SelectPopover>
+            </Select>
+          ) : (
+            <Badge status={order.status} className="whitespace-nowrap shadow-sm text-[11px] py-1 pointer-events-none" />
           )}
         </div>
       </td>

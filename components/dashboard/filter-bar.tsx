@@ -1,4 +1,5 @@
 import type { Category, OrderStatus } from '@/types/database';
+import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 
 interface FilterBarProps {
   searchQuery: string;
@@ -69,30 +70,42 @@ export function FilterBar({
 
         {/* Category filter */}
         <div className="flex gap-2 w-full sm:w-auto">
-          <select
-            className="h-11 px-3 rounded-xl border border-border bg-card text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm appearance-none pr-8 bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%236b7280%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:16px_16px] bg-[right_8px_center] bg-no-repeat transition-colors flex-1 sm:flex-none sm:min-w-[140px]"
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+          <Select
             aria-label="Filter by category"
+            selectedKey={selectedCategory}
+            onSelectionChange={(k) => setSelectedCategory(k as string)}
           >
-            <option value="All">All Categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="h-11 px-3 rounded-xl border border-border bg-card text-foreground text-sm font-medium shadow-sm flex-1 sm:flex-none sm:min-w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPopover>
+              <SelectListBox>
+                <SelectItem id="All">All Categories</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} id={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectListBox>
+            </SelectPopover>
+          </Select>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="h-11 px-3 rounded-xl border border-border bg-card text-foreground text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm appearance-none pr-8 bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%236b7280%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[length:16px_16px] bg-[right_8px_center] bg-no-repeat transition-colors flex-1 sm:flex-none sm:min-w-[140px]"
+          <Select
             aria-label="Sort options"
+            selectedKey={sortBy}
+            onSelectionChange={(k) => setSortBy(k as string)}
           >
-            <option value="date-desc">Date (New)</option>
-            <option value="date-asc">Date (Old)</option>
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-            <option value="order-asc">Order #</option>
-          </select>
+            <SelectTrigger className="h-11 px-3 rounded-xl border border-border bg-card text-foreground text-sm font-medium shadow-sm flex-1 sm:flex-none sm:min-w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPopover>
+              <SelectListBox>
+                <SelectItem id="date-desc">Date (New)</SelectItem>
+                <SelectItem id="date-asc">Date (Old)</SelectItem>
+                <SelectItem id="name-asc">Name (A-Z)</SelectItem>
+                <SelectItem id="name-desc">Name (Z-A)</SelectItem>
+                <SelectItem id="order-asc">Order #</SelectItem>
+              </SelectListBox>
+            </SelectPopover>
+          </Select>
         </div>
 
         {/* Result count + Clear */}
