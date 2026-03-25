@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 import type { OrderWithCategory, Category, OrderStatus } from '@/types/database';
+import toast from 'react-hot-toast';
 
 interface OrderFormSheetProps {
   order: OrderWithCategory | null; // null = Add Mode, object = Edit Mode
@@ -143,7 +144,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       URL.revokeObjectURL(localPreview);
       setPhotoUrl(null);
       setPhotoPath(null);
-      alert('Photo upload failed: ' + err.message);
+      toast.error("Couldn't upload the photo. Please try again.");
     } finally {
       setPhotoUploading(false);
     }
@@ -169,7 +170,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setLocalCategories(prev => [...prev, data]);
         setCategoryId(data.id);
       } catch (err: any) {
-        alert('Failed to add category: ' + err.message);
+        toast.error("Couldn't add the category. Please try again.");
         setCategoryId(categories[0]?.id || '');
       }
     } else {
@@ -201,7 +202,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
           if (error) throw error;
           setAudioPath(fileName);
         } catch (err: any) {
-          alert('Failed to upload audio: ' + err.message);
+          toast.error("Couldn't save the voice note. Please try again.");
         } finally {
           setAudioUploading(false);
         }
@@ -216,7 +217,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setRecordingDuration(prev => prev + 1);
       }, 1000);
     } catch (err) {
-      alert("Microphone access denied or unavailable.");
+      toast.error("Microphone access was denied. Please allow microphone access in your browser settings and try again.");
     }
   };
 
@@ -266,7 +267,12 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       }
       onClose();
     } catch (err: any) {
-      alert('Failed to save order: ' + err.message);
+      const msg = err?.message || '';
+      if (msg.includes('duplicate') || msg.includes('unique')) {
+        toast.error('An order with this Order No already exists. Please use a different Order No.');
+      } else {
+        toast.error("Couldn't save the order. Please check your details and try again.");
+      }
     } finally {
       setLoading(false);
     }

@@ -102,7 +102,12 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
         .eq('id', cat.id);
       if (err) throw err;
       cancelEdit();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      const msg = err?.message || '';
+      setError(msg.includes('duplicate') || msg.includes('unique')
+        ? 'A category with this name already exists.'
+        : "Couldn't rename the category. Please try again.");
+    }
     finally { setLoading(false); }
   };
 
@@ -114,7 +119,12 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
         .insert({ name: newName.trim(), color: newColor });
       if (err) throw err;
       setIsAdding(false); setNewName(''); setNewColor('violet');
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      const msg = err?.message || '';
+      setError(msg.includes('duplicate') || msg.includes('unique')
+        ? 'A category with this name already exists.'
+        : "Couldn't add the category. Please try again.");
+    }
     finally { setLoading(false); }
   };
 
@@ -124,7 +134,9 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
     try {
       const { error: err } = await supabase.from('categories').delete().eq('id', id);
       if (err) throw err;
-    } catch (err: any) { setError(err.message); }
+    } catch (err: any) {
+      setError("Couldn't delete this category. Please try again.");
+    }
     finally { setLoading(false); }
   };
 

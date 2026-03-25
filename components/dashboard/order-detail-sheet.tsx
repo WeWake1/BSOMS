@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import type { OrderWithCategory } from '@/types/database';
+import toast from 'react-hot-toast';
 
 interface OrderDetailSheetProps {
   order: OrderWithCategory | null;
@@ -66,7 +67,7 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
       if (error) throw error;
       onClose();
     } catch (err: any) {
-      alert('Failed to delete order: ' + err.message);
+      toast.error("Couldn't delete this order. Please try again.");
     } finally {
       setIsDeleting(false);
     }

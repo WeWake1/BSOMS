@@ -44,7 +44,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     // @ts-ignore
     const { error } = await supabase.from('orders').update({ status: newStatus, dispatch_date: null }).eq('id', orderId);
     if (error) {
-      toast.error('Failed to update status');
+      toast.error("Couldn't update the order status. Please try again.");
     } else {
       toast.success(`Status moved to ${newStatus}`);
     }
@@ -55,7 +55,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     // @ts-ignore
     const { error } = await supabase.from('orders').update({ status: 'Dispatched', dispatch_date: dispatchPromptDate }).eq('id', dispatchPromptOrder);
     if (error) {
-      toast.error('Failed to update status to Dispatched');
+      toast.error("Couldn't mark order as Dispatched. Please try again.");
     } else {
       toast.success('Order marked as Dispatched!');
     }
@@ -143,7 +143,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
       {error ? (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 text-sm">
-          Failed to load orders: {error}
+          Couldn't load orders. Please refresh the page.
         </div>
       ) : (
         <StatusCards counts={counts} activeFilter={selectedStatus} onFilterClick={setSelectedStatus} />
