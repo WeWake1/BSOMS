@@ -20,6 +20,7 @@ export interface Order {
   qty: number;
   description: string | null;
   photo_url: string | null;
+  audio_url: string | null;
   status: OrderStatus;
   created_at: string;
   updated_at: string;

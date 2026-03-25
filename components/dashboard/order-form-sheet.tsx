@@ -24,6 +24,17 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
+  // Audio State
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioPath, setAudioPath] = useState<string | null>(null);
+  const [audioUploading, setAudioUploading] = useState(false);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<any>(null);
+
   // Form State
   const [orderNo, setOrderNo] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -53,6 +64,16 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setStatus(order.status);
         setDescription(order.description || '');
         setPhotoPath(order.photo_url || null);
+        setAudioPath(order.audio_url || null);
+
+        if (order.audio_url) {
+          supabase.storage.from('order-audio').createSignedUrl(order.audio_url, 3600).then(({ data }) => {
+            if (data) setAudioUrl(data.signedUrl);
+          });
+        } else {
+          setAudioUrl(null);
+        }
+
         if (order.photo_url) {
           // Fetch secure signed URL for existing private photo
           supabase.storage.from('order-photos').createSignedUrl(order.photo_url, 3600).then(({ data }) => {
@@ -62,12 +83,18 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
           setPhotoUrl(null);
         }
       } else {
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date();
+        const nextWeek = new Date(today);
+        nextWeek.setDate(today.getDate() + 7);
+        
+        const todayStr = today.toISOString().split('T')[0];
+        const nextWeekStr = nextWeek.toISOString().split('T')[0];
+        
         setOrderNo('');
         setCustomerName('');
         setCategoryId(categories[0]?.id || '');
-        setDate(today);
-        setDueDate(today);
+        setDate(todayStr);
+        setDueDate(nextWeekStr);
         setDispatchDate('');
         setLength('');
         setWidth('');
@@ -76,6 +103,11 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setDescription('');
         setPhotoPath(null);
         setPhotoUrl(null);
+        setAudioPath(null);
+        setAudioUrl(null);
+        setIsRecording(false);
+        setRecordingDuration(0);
+        if (timerRef.current) clearInterval(timerRef.current);
       }
     }
   }, [isOpen, order, categories]);
@@ -145,6 +177,64 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
     }
   };
 
+  // 4. Audio Upload logic
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const localUrl = URL.createObjectURL(audioBlob);
+        setAudioUrl(localUrl);
+        
+        setAudioUploading(true);
+        try {
+          const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.webm`;
+          const { error } = await supabase.storage.from('order-audio').upload(fileName, audioBlob);
+          if (error) throw error;
+          setAudioPath(fileName);
+        } catch (err: any) {
+          alert('Failed to upload audio: ' + err.message);
+        } finally {
+          setAudioUploading(false);
+        }
+
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+      timerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      alert("Microphone access denied or unavailable.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const deleteAudio = () => {
+    setAudioUrl(null);
+    setAudioPath(null);
+    setRecordingDuration(0);
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
   // 4. Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +253,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       status,
       description,
       photo_url: photoPath,
+      audio_url: audioPath,
     };
 
     try {
@@ -303,6 +394,55 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
             accept="image/*, .heic" 
             onChange={handlePhotoUpload}
           />
+        </div>
+
+        {/* Audio Recording UI */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-gray-700">Voice Note</label>
+          
+          {audioUrl ? (
+             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex flex-col gap-3">
+               <audio controls src={audioUrl} className="w-full h-10 outline-none" />
+               <div className="flex justify-between items-center px-1">
+                 <span className="text-xs font-semibold text-gray-500">Audio ready</span>
+                 <button type="button" onClick={deleteAudio} className="text-xs font-bold text-red-600 hover:text-red-700 py-1 px-2 rounded-md hover:bg-red-50 transition-colors">Delete</button>
+               </div>
+             </div>
+          ) : isRecording ? (
+             <div className="w-full h-24 border-2 border-indigo-500 bg-indigo-50/50 rounded-xl flex flex-col items-center justify-center relative shadow-inner">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+                  </div>
+                  <span className="font-mono text-indigo-900 font-bold tracking-wider">
+                     {Math.floor(recordingDuration / 60).toString().padStart(2, '0')}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                  </span>
+                </div>
+                <button type="button" onClick={stopRecording} className="mt-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase tracking-wider py-1.5 px-4 rounded-full shadow-sm min-tap">
+                  Stop Recording
+                </button>
+             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={startRecording}
+              className="w-full h-24 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors min-tap"
+              disabled={audioUploading || photoUploading}
+            >
+              {audioUploading ? (
+                <>
+                  <svg className="animate-spin w-5 h-5 mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  <span className="text-sm font-medium">Uploading Audio...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                  <span className="text-sm font-medium">Record Voice Note</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         <div className="mt-4 pt-4 border-t border-gray-100 flex gap-3 pb-8">

@@ -20,6 +20,7 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
   const [isDeleting, setIsDeleting] = useState(false);
   const [photoExpanded, setPhotoExpanded] = useState(false);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [signedAudioUrl, setSignedAudioUrl] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -37,6 +38,22 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
       setSignedUrl(null);
     }
   }, [order?.photo_url, isOpen, supabase]);
+
+  useEffect(() => {
+    if (order?.audio_url && isOpen) {
+      if (order.audio_url.startsWith('http')) {
+        setSignedAudioUrl(order.audio_url);
+      } else {
+        supabase.storage.from('order-audio')
+          .createSignedUrl(order.audio_url, 3600)
+          .then(({ data }) => {
+            if (data) setSignedAudioUrl(data.signedUrl);
+          });
+      }
+    } else {
+      setSignedAudioUrl(null);
+    }
+  }, [order?.audio_url, isOpen, supabase]);
 
   if (!order) return null;
 
@@ -84,6 +101,18 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
                 </div>
               </div>
             </button>
+          )}
+
+          {signedAudioUrl && (
+            <div className="bg-indigo-50/50 rounded-2xl p-4 border border-indigo-100/50 flex flex-col gap-2">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                  <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                </div>
+                <span className="text-xs font-bold text-indigo-900 tracking-tight uppercase">Voice Note</span>
+              </div>
+              <audio controls src={signedAudioUrl} className="w-full h-11 focus:outline-none" />
+            </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">

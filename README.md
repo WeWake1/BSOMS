@@ -54,6 +54,7 @@ create table orders (
   qty integer not null,
   description text,
   photo_url text,
+  audio_url text,
   status order_status not null default 'Pending',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -163,6 +164,19 @@ create policy "Admin can upload photos"
 create policy "Admin can delete photos"
   on storage.objects for delete
   using (bucket_id = 'order-photos' and get_user_role() = 'admin');
+
+-- Audio storage policies (Bucket: order-audio)
+create policy "Authenticated users can view audio"
+  on storage.objects for select
+  using (bucket_id = 'order-audio' and auth.role() = 'authenticated');
+
+create policy "Admin can upload audio"
+  on storage.objects for insert
+  with check (bucket_id = 'order-audio' and get_user_role() = 'admin');
+
+create policy "Admin can delete audio"
+  on storage.objects for delete
+  using (bucket_id = 'order-audio' and get_user_role() = 'admin');
 ```
 
 #### Enable Realtime
