@@ -17,18 +17,26 @@ interface SettingsDrawerProps {
   categories: Category[];
 }
 
-/** Compact color swatch picker */
+/** Compact color swatch picker — H8: 44px tap zone via padding wrapper */
 function ColorPicker({ value, onChange }: { value: CategoryColorKey; onChange: (k: CategoryColorKey) => void }) {
   return (
-    <div className="flex flex-wrap gap-1.5 mt-2">
+    <div className="flex flex-wrap gap-1 mt-2" role="radiogroup" aria-label="Category color">
       {CATEGORY_COLOR_OPTIONS.map(opt => (
         <button
           key={opt.key}
           type="button"
           title={opt.label}
+          role="radio"
+          aria-checked={value === opt.key}
+          aria-label={opt.label}
           onClick={() => onChange(opt.key)}
-          className={`w-6 h-6 rounded-full ${opt.swatch} transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-gray-400 ${value === opt.key ? 'ring-2 ring-offset-1 ring-gray-600 scale-110' : ''}`}
-        />
+          className={`p-2.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-ring hover:bg-muted ${
+            value === opt.key ? 'ring-2 ring-offset-1 ring-ring bg-muted' : ''
+          }`}
+        >
+          {/* Visual swatch is 24px, but tap zone is the full button ~44px */}
+          <span className={`block w-6 h-6 rounded-full ${opt.swatch} ${value === opt.key ? 'scale-110' : ''} transition-transform`} />
+        </button>
       ))}
     </div>
   );
@@ -51,6 +59,9 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState<CategoryColorKey>('violet');
 
+  // C1: inline delete confirmation instead of window.confirm
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +73,7 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
       setIsAdding(false);
       setNewName('');
       setError(null);
+      setConfirmDeleteId(null);
     }
   }, [isOpen]);
 
@@ -129,12 +141,12 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
   };
 
   const deleteCategory = async (id: string) => {
-    if (!confirm('Delete this category? Orders using it will lose their category.')) return;
     setLoading(true); setError(null);
     try {
       const { error: err } = await supabase.from('categories').delete().eq('id', id);
       if (err) throw err;
-    } catch (err: any) {
+      setConfirmDeleteId(null);
+    } catch {
       setError("Couldn't delete this category. Please try again.");
     }
     finally { setLoading(false); }
@@ -237,12 +249,31 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
                             <span className={`text-sm font-semibold px-2 py-0.5 rounded-md border ${catColor.bg} ${catColor.text} ${catColor.border} dark:bg-opacity-20 dark:border-opacity-30 truncate`}>{cat.name}</span>
                           </div>
                           <div className="flex items-center gap-1.5 ml-3 shrink-0">
-                            <button onClick={() => startEdit(cat)} className="p-2 text-muted-foreground hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-800 dark:hover:text-indigo-400 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 active:scale-95" aria-label="Edit">
+                            <button onClick={() => startEdit(cat)} className="p-2 text-muted-foreground hover:bg-primary/10 hover:text-primary dark:hover:bg-slate-800 dark:hover:text-primary rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95 min-tap" aria-label="Edit">
                               <svg className="w-3.5 h-3.5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                             </button>
-                            <button onClick={() => deleteCategory(cat.id)} className="p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 active:scale-95" aria-label="Delete">
-                              <svg className="w-3.5 h-3.5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                            </button>
+                            {/* C1: two-step inline delete confirmation */}
+                            {confirmDeleteId === cat.id ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="text-[10px] font-bold text-muted-foreground px-2 py-1.5 rounded-md hover:bg-muted transition-colors min-tap"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => deleteCategory(cat.id)}
+                                  disabled={loading}
+                                  className="text-[10px] font-bold text-destructive px-2 py-1.5 rounded-md hover:bg-destructive/10 transition-colors min-tap"
+                                >
+                                  {loading ? 'Deleting…' : 'Confirm'}
+                                </button>
+                              </div>
+                            ) : (
+                              <button onClick={() => setConfirmDeleteId(cat.id)} className="p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive active:scale-95 min-tap" aria-label="Delete">
+                                <svg className="w-3.5 h-3.5 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}

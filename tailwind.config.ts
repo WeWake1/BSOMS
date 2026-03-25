@@ -16,67 +16,53 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-plus-jakarta)', 'sans-serif'],
       },
+      fontSize: {
+        // Fluid type scale using clamp() — L1 fix
+        'fluid-xs':   ['clamp(0.75rem,  1.5vw, 0.875rem)', { lineHeight: '1.4' }],
+        'fluid-sm':   ['clamp(0.875rem, 2vw,   1rem)',      { lineHeight: '1.5' }],
+        'fluid-base': ['clamp(1rem,     2.5vw, 1.125rem)',  { lineHeight: '1.6' }],
+        'fluid-lg':   ['clamp(1.125rem, 3vw,   1.5rem)',    { lineHeight: '1.4' }],
+        'fluid-xl':   ['clamp(1.25rem,  3.5vw, 1.875rem)',  { lineHeight: '1.3' }],
+        'fluid-2xl':  ['clamp(1.5rem,   4vw,   2.25rem)',   { lineHeight: '1.2' }],
+      },
       colors: {
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        card: 'hsl(var(--card))',
-        'card-foreground': 'hsl(var(--card-foreground))',
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
+        // All tokens use CSS variables (OKLCH values defined in globals.css)
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        card: {
+          DEFAULT: 'var(--card)',
+          foreground: 'var(--card-foreground)',
         },
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
+        popover: {
+          DEFAULT: 'var(--popover)',
+          foreground: 'var(--popover-foreground)',
+        },
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
+          DEFAULT: 'var(--primary)',
+          foreground: 'var(--primary-foreground)',
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
+          DEFAULT: 'var(--secondary)',
+          foreground: 'var(--secondary-foreground)',
         },
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
+          DEFAULT: 'var(--accent)',
+          foreground: 'var(--accent-foreground)',
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
+          DEFAULT: 'var(--destructive)',
+          foreground: 'var(--destructive-foreground)',
         },
-        // Status colors — polished with OKLCH in Phase 7 (Impeccable)
-        pending: {
-          50: "#fffbeb",
-          100: "#fef3c7",
-          500: "#f59e0b",
-          600: "#d97706",
-          800: "#92400e",
-        },
-        progress: {
-          50: "#eff6ff",
-          100: "#dbeafe",
-          500: "#3b82f6",
-          600: "#2563eb",
-          800: "#1e40af",
-        },
-        packing: {
-          50: "#faf5ff",
-          100: "#f3e8ff",
-          500: "#a855f7",
-          600: "#9333ea",
-          800: "#6b21a8",
-        },
-        dispatched: {
-          50: "#f0fdf4",
-          100: "#dcfce7",
-          500: "#22c55e",
-          600: "#16a34a",
-          800: "#166534",
-        },
+        // Status colors are OKLCH CSS variables in globals.css.
+        // Use arbitrary syntax in components: [background-color:var(--status-pending-bg)]
+        // or use getStatusColor() / getStatusCardColor() from lib/utils.ts
       },
     },
   },

@@ -6,53 +6,107 @@
   --min-tap-target: 44px;
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 
-  --background: 210 40% 98%;      /* slate-50 */
-  --foreground: 222.2 84% 4.9%;   /* slate-950 */
+  /* Neutrals — tinted slightly toward brand indigo for subconscious cohesion */
+  --background: oklch(98.5% 0.004 265);   /* almost-white with faint indigo tint */
+  --foreground: oklch(15% 0.025 265);     /* near-black, indigo-tinted */
 
-  --card: 0 0% 100%;              /* white */
-  --card-foreground: 222.2 84% 4.9%;
-  
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  
-  --border: 214.3 31.8% 91.4%;    /* slate-200 */
-  --input: 214.3 31.8% 91.4%;
-  --ring: 238.7 83.5% 66.7%;
-  --primary: 238.7 83.5% 66.7%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
+  --card: oklch(100% 0 0);
+  --card-foreground: oklch(15% 0.025 265);
+
+  --popover: oklch(100% 0 0);
+  --popover-foreground: oklch(15% 0.025 265);
+
+  --border: oklch(91% 0.006 265);
+  --input: oklch(91% 0.006 265);
+
+  /* Brand — indigo */
+  --ring: oklch(63% 0.22 265);
+  --primary: oklch(63% 0.22 265);
+  --primary-foreground: oklch(98.5% 0.004 265);
+
+  --secondary: oklch(95% 0.008 265);
+  --secondary-foreground: oklch(25% 0.03 265);
+
+  --accent: oklch(95% 0.008 265);
+  --accent-foreground: oklch(25% 0.03 265);
+
+  --muted: oklch(95% 0.008 265);
+  --muted-foreground: oklch(55% 0.015 265);
+
+  --destructive: oklch(58% 0.22 25);
+  --destructive-foreground: oklch(98.5% 0.004 265);
+
+  /* OKLCH status colors — perceptually uniform, vibrant, distinct */
+  --status-pending:        oklch(78% 0.17 75);    /* amber */
+  --status-pending-bg:     oklch(97% 0.04 85);
+  --status-pending-border: oklch(88% 0.09 80);
+  --status-pending-text:   oklch(50% 0.14 60);
+
+  --status-progress:       oklch(62% 0.2 245);    /* blue */
+  --status-progress-bg:    oklch(96% 0.03 245);
+  --status-progress-border:oklch(85% 0.07 245);
+  --status-progress-text:  oklch(40% 0.16 250);
+
+  --status-packing:        oklch(65% 0.22 300);   /* violet */
+  --status-packing-bg:     oklch(97% 0.03 300);
+  --status-packing-border: oklch(87% 0.07 300);
+  --status-packing-text:   oklch(42% 0.18 300);
+
+  --status-dispatched:     oklch(65% 0.18 150);   /* green */
+  --status-dispatched-bg:  oklch(97% 0.03 150);
+  --status-dispatched-border:oklch(85% 0.07 150);
+  --status-dispatched-text:oklch(40% 0.14 150);
 }
 
 html.dark {
-  --background: 222.2 84% 4.9%;   /* slate-950 */
-  --foreground: 210 40% 98%;      /* slate-50 */
+  --background: oklch(16% 0.02 265);
+  --foreground: oklch(96% 0.005 265);
 
-  --card: 217.2 32.6% 17.5%;      /* slate-800 */
-  --card-foreground: 210 40% 98%;
-  
-  --popover: 217.2 32.6% 17.5%;
-  --popover-foreground: 210 40% 98%;
-  
-  --border: 217.2 32.6% 17.5%;    /* slate-800 */
-  --input: 217.2 32.6% 17.5%;
-  --ring: 238.7 83.5% 66.7%;
-  --primary: 238.7 83.5% 66.7%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
+  --card: oklch(22% 0.025 265);
+  --card-foreground: oklch(96% 0.005 265);
+
+  --popover: oklch(22% 0.025 265);
+  --popover-foreground: oklch(96% 0.005 265);
+
+  --border: oklch(28% 0.025 265);
+  --input: oklch(28% 0.025 265);
+
+  --ring: oklch(63% 0.22 265);
+  --primary: oklch(63% 0.22 265);
+  --primary-foreground: oklch(98% 0.004 265);
+
+  --secondary: oklch(25% 0.025 265);
+  --secondary-foreground: oklch(94% 0.006 265);
+
+  --accent: oklch(25% 0.025 265);
+  --accent-foreground: oklch(94% 0.006 265);
+
+  --muted: oklch(25% 0.025 265);
+  --muted-foreground: oklch(65% 0.015 265);
+
+  --destructive: oklch(40% 0.17 25);
+  --destructive-foreground: oklch(96% 0.005 265);
+
+  /* Dark status — slightly more saturated to compensate for dark backgrounds */
+  --status-pending:        oklch(78% 0.17 75);
+  --status-pending-bg:     oklch(22% 0.06 70);
+  --status-pending-border: oklch(35% 0.1 70);
+  --status-pending-text:   oklch(82% 0.15 78);
+
+  --status-progress:       oklch(65% 0.2 245);
+  --status-progress-bg:    oklch(22% 0.06 245);
+  --status-progress-border:oklch(35% 0.1 245);
+  --status-progress-text:  oklch(72% 0.18 245);
+
+  --status-packing:        oklch(68% 0.22 300);
+  --status-packing-bg:     oklch(22% 0.06 300);
+  --status-packing-border: oklch(35% 0.1 300);
+  --status-packing-text:   oklch(75% 0.2 300);
+
+  --status-dispatched:     oklch(65% 0.18 150);
+  --status-dispatched-bg:  oklch(22% 0.06 150);
+  --status-dispatched-border:oklch(35% 0.1 150);
+  --status-dispatched-text:oklch(72% 0.16 150);
 }
 
 * {
@@ -62,8 +116,8 @@ html.dark {
 body {
   min-height: 100dvh;
   overflow-x: hidden;
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
+  background-color: var(--background);
+  color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -80,4 +134,5 @@ body {
     padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
   }
 }
+
 

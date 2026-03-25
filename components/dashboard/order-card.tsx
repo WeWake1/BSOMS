@@ -26,11 +26,11 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }
       <div className="flex justify-between items-start gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[17px] font-bold text-gray-900 dark:text-white tracking-tight group-hover:text-indigo-700 dark:group-hover:text-indigo-400 transition-colors">
+            <span className="text-[17px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">
               {order.order_no}
             </span>
             {order.categories && catColor ? (
-              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${catColor.bg} ${catColor.text} ${catColor.border} dark:bg-opacity-20 dark:border-opacity-30`}>
+              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${catColor.bg} ${catColor.text} ${catColor.border}`}>
                 {order.categories.name}
               </span>
             ) : (

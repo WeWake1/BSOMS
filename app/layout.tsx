@@ -21,8 +21,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({
@@ -36,7 +34,7 @@ export default function RootLayout({
         className={`${plusJakarta.variable} font-sans transition-colors duration-200`}
       >
         {children}
-        <Toaster position="bottom-center" />
+        <Toaster position="bottom-right" toastOptions={{ style: { marginBottom: '80px' } }} />
       </body>
     </html>
   );

@@ -23,7 +23,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | 'All'>('All');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'order-asc'>('date-desc');
-  const [viewMode, setViewMode] = useState<'card' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [dispatchPromptOrder, setDispatchPromptOrder] = useState<string | null>(null);
@@ -120,23 +120,31 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       {/* TopBar */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Orders</h1>
+          <h1 className="text-fluid-2xl font-extrabold text-foreground tracking-tight">Orders</h1>
           <p className="text-sm font-medium text-muted-foreground mt-1">Live overview of workflow</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2 justify-end">
-          <Button variant="secondary" size="sm" onClick={() => generateOrderReportPDF(filteredOrders)} disabled={filteredOrders.length === 0} className="hidden sm:flex">
-            <svg className="w-4 h-4 mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export
+        <div className="flex items-center gap-2">
+          {/* H4: Single export button, visible on all screen sizes */}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => generateOrderReportPDF(filteredOrders)}
+            disabled={filteredOrders.length === 0}
+            className="h-9"
+            aria-label="Export PDF report"
+          >
+            <svg className="w-4 h-4 sm:mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span className="hidden sm:inline">Export</span>
           </Button>
 
-          <button 
+          <button
             onClick={() => setIsSettingsOpen(true)}
-            className="w-9 h-9 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-100 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 min-tap border border-indigo-100 ml-1"
+            className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-tap border border-primary/20 ml-1"
             aria-label="User Settings"
           >
-             <span className="font-bold text-sm tracking-tight">
-               {user.profile.full_name ? user.profile.full_name[0].toUpperCase() : (user.email?.[0]?.toUpperCase() || 'U')}
-             </span>
+            <span className="font-bold text-sm tracking-tight">
+              {user.profile.full_name ? user.profile.full_name[0].toUpperCase() : (user.email?.[0]?.toUpperCase() || 'U')}
+            </span>
           </button>
         </div>
       </div>
@@ -165,19 +173,16 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         setViewMode={setViewMode}
       />
 
-      <div className="sm:hidden mb-4 flex gap-2">
-          <Button variant="secondary" onClick={() => generateOrderReportPDF(filteredOrders)} disabled={filteredOrders.length === 0} className="px-3 shrink-0 w-full flex items-center justify-center">
-             <svg className="w-[18px] h-[18px] mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-             Export Report
-          </Button>
-      </div>
+
+      {/* H4: Mobile export row removed — now in top bar */}
 
       {/* Orders List */}
       <div className={viewMode === 'card' ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-4 flex flex-col gap-0 rounded-2xl border border-border bg-card overflow-hidden shadow-sm"}>
+        {/* H1: role=status + aria-label on main loading spinner */}
         {loading && orders.length === 0 ? (
-          <div className="py-16 text-center text-sm font-medium text-gray-500 flex flex-col items-center gap-3">
-             <svg className="animate-spin w-8 h-8 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-             Loading orders...
+          <div role="status" aria-label="Loading orders" className="py-16 text-center text-sm font-medium text-muted-foreground flex flex-col items-center gap-3">
+            <svg className="animate-spin w-8 h-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            Loading orders...
           </div>
         ) : sortedOrders.length > 0 ? (
           viewMode === 'card' ? (
@@ -195,11 +200,12 @@ export function DashboardClient({ user }: { user: AuthUser }) {
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-muted/50 border-b border-border text-muted-foreground">
                   <tr>
-                    <th className="px-6 py-3 font-semibold w-[150px]">Order #</th>
-                    <th className="px-6 py-3 font-semibold">Customer</th>
-                    <th className="px-6 py-3 font-semibold">Size</th>
-                    <th className="px-6 py-3 font-semibold text-right">Qty</th>
-                    <th className="px-6 py-3 font-semibold text-center">Status</th>
+                    {/* M8: scope=col on all th elements */}
+                    <th scope="col" className="px-3 sm:px-6 py-3 font-semibold w-[130px]">Order #</th>
+                    <th scope="col" className="px-3 sm:px-6 py-3 font-semibold">Customer</th>
+                    <th scope="col" className="px-3 sm:px-6 py-3 font-semibold hidden sm:table-cell">Size</th>
+                    <th scope="col" className="px-3 sm:px-6 py-3 font-semibold text-right">Qty</th>
+                    <th scope="col" className="px-3 sm:px-6 py-3 font-semibold text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -217,12 +223,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             </div>
           )
         ) : !loading ? (
-          <div className="py-12 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl mt-4">
-          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-            <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          </div>
-          <p className="font-medium text-foreground">No orders found</p>
-          <p className="text-sm mt-1">Try adjusting your filters or search query.</p>
+          // M7: removed generic circle-icon+heading empty state (anti-pattern)
+          <div className="py-14 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl mt-4 px-6">
+            <p className="font-semibold text-foreground text-base">No orders found</p>
+            <p className="text-sm mt-1.5">Try adjusting your filters or search query.</p>
             {(searchQuery || selectedCategory !== 'All' || selectedStatus !== 'All') && (
               <Button variant="ghost" size="sm" onClick={handleClearFilters} className="mt-4">
                 Clear Filters
