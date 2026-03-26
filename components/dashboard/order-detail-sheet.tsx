@@ -100,7 +100,7 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
 
   return (
     <>
-      <Drawer isOpen={isOpen && !photoExpanded} onClose={onClose} title={`Order: ${order.order_no}`}>
+      <Drawer isOpen={isOpen && !photoExpanded} onClose={onClose} title={order.order_no}>
         <div className="flex flex-col gap-5 pt-2">
 
           <div className="flex justify-between items-start">
@@ -166,7 +166,7 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
             <div className="bg-muted rounded-xl p-3 border border-border">
               <span className="block text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-1">Dimensions & Qty</span>
               <span className="block text-sm font-bold text-foreground">
-                {order.length && order.width ? `${order.length} × ${order.width} cm` : 'No dims'}
+                {order.length && order.width ? `${order.length} × ${order.width} cm` : '—'}
                 <span className="mx-2 text-muted-foreground">|</span>
                 Qty: {order.qty}
               </span>
@@ -196,7 +196,7 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
                     Cancel
                   </Button>
                   <Button variant="danger" className="flex-1 text-sm" loading={isDeleting} loadingText="Deleting…" onClick={handleDelete}>
-                    Confirm Delete
+                    Yes, Delete
                   </Button>
                 </div>
               ) : (

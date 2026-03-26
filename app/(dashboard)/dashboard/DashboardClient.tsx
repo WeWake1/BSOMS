@@ -46,7 +46,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     if (error) {
       toast.error("Couldn't update the order status. Please try again.");
     } else {
-      toast.success(`Status moved to ${newStatus}`);
+      toast.success(`Moved to ${newStatus}`);
     }
   };
 
@@ -121,7 +121,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       <div className="flex justify-between items-center mb-6 animate-fade-up">
         <div>
           <h1 className="text-fluid-2xl font-extrabold text-foreground tracking-tight">Orders</h1>
-          <p className="text-sm font-medium text-muted-foreground mt-1">Live overview of workflow</p>
+          <p className="text-sm font-medium text-muted-foreground mt-1">
+            {loading && orders.length === 0 ? 'Loading…' : `${orders.length} order${orders.length !== 1 ? 's' : ''} · ${counts['In Progress']} in progress`}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {/* H4: Single export button, visible on all screen sizes */}
@@ -167,6 +169,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         categories={categories}
         onClear={handleClearFilters}
         resultCount={filteredOrders.length}
+        totalCount={orders.length}
         sortBy={sortBy}
         setSortBy={setSortBy}
         viewMode={viewMode}
@@ -225,10 +228,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         ) : !loading ? (
           // M7: removed generic circle-icon+heading empty state (anti-pattern)
           <div className="py-14 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl mt-4 px-6">
-            <p className="font-semibold text-foreground text-base">No orders found</p>
-            <p className="text-sm mt-1.5">Try adjusting your filters or search query.</p>
+            <p className="font-semibold text-foreground text-base">No orders match your filters</p>
+            <p className="text-sm mt-1.5 text-muted-foreground">Try a different status, category, or search term.</p>
             {(searchQuery || selectedCategory !== 'All' || selectedStatus !== 'All') && (
-              <Button variant="ghost" size="sm" onClick={handleClearFilters} className="mt-4">
+              <Button variant="secondary" size="sm" onClick={handleClearFilters} className="mt-4">
                 Clear Filters
               </Button>
             )}
@@ -274,10 +277,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       {dispatchPromptOrder && (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
           <div className="bg-card w-full max-w-sm rounded-2xl shadow-xl overflow-hidden p-5 border border-border">
-            <h3 className="font-bold text-lg mb-2">Set Dispatch Date</h3>
-            <p className="text-sm text-muted-foreground mb-4">Please specify when this order was dispatched to complete the update.</p>
+            <h3 className="font-bold text-lg mb-4">When was it dispatched?</h3>
             <div className="flex flex-col gap-1.5 mb-6">
-              <label className="text-sm font-medium">Dispatch Date</label>
+              <label className="text-sm font-medium">Dispatch date</label>
               <input 
                 type="date" 
                 value={dispatchPromptDate} 
@@ -288,7 +290,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             </div>
             <div className="flex justify-end gap-3">
               <Button variant="ghost" onClick={() => setDispatchPromptOrder(null)}>Cancel</Button>
-              <Button onClick={handleDispatchConfirm}>Confirm & Dispatch</Button>
+              <Button onClick={handleDispatchConfirm}>Mark Dispatched</Button>
             </div>
           </div>
         </div>

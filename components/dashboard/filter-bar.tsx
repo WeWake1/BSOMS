@@ -11,6 +11,7 @@ interface FilterBarProps {
   categories: Category[];
   onClear: () => void;
   resultCount: number;
+  totalCount: number;
   sortBy: string;
   setSortBy: (s: any) => void;
   viewMode: 'card' | 'list';
@@ -27,6 +28,7 @@ export function FilterBar({
   categories,
   onClear,
   resultCount,
+  totalCount,
   sortBy,
   setSortBy,
   viewMode,
@@ -138,7 +140,9 @@ export function FilterBar({
           {/* Result count + L3: min-w-[44px] on Clear button */}
           <div className="flex items-center gap-2 shrink-0 ml-auto">
             <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-1 rounded-md whitespace-nowrap">
-              {resultCount} {resultCount === 1 ? 'result' : 'results'}
+              {hasFilters && resultCount !== totalCount
+                ? `${resultCount} of ${totalCount} orders`
+                : `${resultCount} order${resultCount !== 1 ? 's' : ''}`}
             </span>
             {hasFilters && (
               <button
