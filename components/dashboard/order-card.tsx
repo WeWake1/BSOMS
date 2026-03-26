@@ -15,10 +15,18 @@ interface OrderCardProps {
 export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
 
+  const statusBorderClass = {
+    'Pending':     'status-border-pending',
+    'In Progress': 'status-border-progress',
+    'Packing':     'status-border-packing',
+    'Dispatched':  'status-border-dispatched',
+  }[order.status];
+
   return (
     <button
       className={cn(
-        "group block w-full text-left p-4 rounded-3xl border bg-card text-card-foreground border-border shadow-sm hover:shadow-md transition-all duration-200 min-tap relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-950",
+        "group block w-full text-left p-4 rounded-2xl border-l-4 border border-border bg-card text-card-foreground shadow-sm hover:shadow-md transition-all duration-200 min-tap relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        statusBorderClass,
         className
       )}
       onClick={onClick}
@@ -73,15 +81,14 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }
         </div>
       </div>
 
-      <div className="flex justify-between items-end border-t border-border pt-3 mt-1 transition-colors">
+      <div className="flex justify-between items-end border-t border-border pt-3 mt-1">
         <div className="flex-1">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Due Date</p>
-          <p className="text-sm font-semibold">{formatDate(order.due_date)}</p>
+          <p className="text-sm font-semibold text-foreground">{formatDate(order.due_date)}</p>
         </div>
-        
         <div className="text-right">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Qty</p>
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-muted rounded-full font-bold text-sm">
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 [color:var(--primary)] rounded-full font-bold text-sm">
             {order.qty}
           </div>
         </div>

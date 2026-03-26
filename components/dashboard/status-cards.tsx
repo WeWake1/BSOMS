@@ -22,25 +22,35 @@ export function StatusCards({ counts, activeFilter, onFilterClick }: StatusCards
       {statuses.map((status) => {
         const { bg, text, border, icon } = getStatusCardColor(status);
         const isActive = activeFilter === status;
-        
+
         return (
           <button
             key={status}
             onClick={() => onFilterClick(isActive ? 'All' : status)}
             className={cn(
-              'flex flex-col p-4 rounded-2xl border text-left transition-all duration-200 min-tap',
+              'flex flex-col p-4 rounded-2xl border text-left transition-all duration-200 min-tap relative overflow-hidden',
               bg,
-              isActive ? `ring-2 ring-offset-1 ${border}` : border,
-              isActive ? 'shadow-sm' : 'hover:shadow-sm opacity-90 hover:opacity-100'
+              border,
+              isActive
+                ? 'ring-2 ring-inset shadow-sm scale-[1.01]'
+                : 'opacity-85 hover:opacity-100 hover:shadow-sm active:scale-[0.98]'
             )}
+            style={isActive ? { '--tw-ring-color': 'currentColor' } as any : {}}
             aria-pressed={isActive}
           >
+            {/* Colored bar at top for active state */}
+            {isActive && (
+              <div className={cn('absolute top-0 left-0 right-0 h-[3px]', icon, 'bg-current')} aria-hidden="true" />
+            )}
             <div className="flex justify-between items-start w-full mb-2">
-              <span className={cn('text-sm font-semibold tracking-wide', text)}>{status}</span>
-              <div className={cn('w-2.5 h-2.5 rounded-full mt-1.5', icon, 'bg-current')} />
+              <span className={cn('text-[11px] font-bold tracking-widest uppercase', text)}>{status}</span>
+              <div className={cn('w-3 h-3 rounded-full mt-0.5 shrink-0', icon, 'bg-current')} aria-hidden="true" />
             </div>
-            <span className={cn('text-3xl font-extrabold tracking-tighter', text)}>
+            <span className={cn('text-4xl font-extrabold tracking-tighter leading-none', text)}>
               {counts[status]}
+            </span>
+            <span className={cn('text-[10px] font-bold mt-2 uppercase tracking-widest', text, 'opacity-60')}>
+              {isActive ? 'Filtered ↑' : 'tap to filter'}
             </span>
           </button>
         );

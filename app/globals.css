@@ -6,107 +6,118 @@
   --min-tap-target: 44px;
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
 
-  /* Neutrals — tinted slightly toward brand indigo for subconscious cohesion */
-  --background: oklch(98.5% 0.004 265);   /* almost-white with faint indigo tint */
-  --foreground: oklch(15% 0.025 265);     /* near-black, indigo-tinted */
+  /* ─── Neutrals ─────────────────────────────────────────────
+     Deeply tinted toward electric indigo (hue 265) so even
+     backgrounds feel on-brand without shouting color.        */
+  --background:  oklch(98%   0.007 265);   /* off-white, barely-blue tint */
+  --foreground:  oklch(13%   0.03  265);   /* near-black, indigo-tinted    */
 
-  --card: oklch(100% 0 0);
-  --card-foreground: oklch(15% 0.025 265);
+  --card:        oklch(99.5% 0.004 265);   /* cards: fractionally cooler than page */
+  --card-foreground: oklch(13% 0.03 265);
 
-  --popover: oklch(100% 0 0);
-  --popover-foreground: oklch(15% 0.025 265);
+  --popover:     oklch(100%  0     0);
+  --popover-foreground: oklch(13% 0.03 265);
 
-  --border: oklch(91% 0.006 265);
-  --input: oklch(91% 0.006 265);
+  --border:      oklch(89%   0.01  265);   /* more visible, indigo-tinted  */
+  --input:       oklch(89%   0.01  265);
 
-  /* Brand — indigo */
-  --ring: oklch(63% 0.22 265);
-  --primary: oklch(63% 0.22 265);
-  --primary-foreground: oklch(98.5% 0.004 265);
+  /* ─── Brand — Electric Indigo ─────────────────────────────
+     Boosted chroma (0.27) for a vivid, confident CTA color.  */
+  --ring:    oklch(58%  0.27 265);
+  --primary: oklch(58%  0.27 265);
+  --primary-foreground: oklch(99% 0.005 265);
 
-  --secondary: oklch(95% 0.008 265);
-  --secondary-foreground: oklch(25% 0.03 265);
+  /* Softer indigo tint for secondary surfaces */
+  --secondary:          oklch(93.5% 0.015 265);
+  --secondary-foreground: oklch(22% 0.04  265);
 
-  --accent: oklch(95% 0.008 265);
-  --accent-foreground: oklch(25% 0.03 265);
+  --accent:             oklch(93.5% 0.015 265);
+  --accent-foreground:  oklch(22%   0.04  265);
 
-  --muted: oklch(95% 0.008 265);
-  --muted-foreground: oklch(55% 0.015 265);
+  --muted:              oklch(94%   0.012 265);
+  --muted-foreground:   oklch(50%   0.02  265);
 
-  --destructive: oklch(58% 0.22 25);
-  --destructive-foreground: oklch(98.5% 0.004 265);
+  --destructive:        oklch(56%   0.25  25);   /* crisp red */
+  --destructive-foreground: oklch(99% 0 0);
 
-  /* OKLCH status colors — perceptually uniform, vibrant, distinct */
-  --status-pending:        oklch(78% 0.17 75);    /* amber */
-  --status-pending-bg:     oklch(97% 0.04 85);
-  --status-pending-border: oklch(88% 0.09 80);
-  --status-pending-text:   oklch(50% 0.14 60);
+  /* ─── Status Colors — High Chroma, Max Legibility ─────────
+     Each pushed to chroma ≥ 0.19 for warehouse lighting.    */
 
-  --status-progress:       oklch(62% 0.2 245);    /* blue */
-  --status-progress-bg:    oklch(96% 0.03 245);
-  --status-progress-border:oklch(85% 0.07 245);
-  --status-progress-text:  oklch(40% 0.16 250);
+  /* Pending — deep amber gold */
+  --status-pending:         oklch(74%  0.19  72);
+  --status-pending-bg:      oklch(97%  0.06  88);
+  --status-pending-border:  oklch(84%  0.13  80);
+  --status-pending-text:    oklch(44%  0.17  58);
 
-  --status-packing:        oklch(65% 0.22 300);   /* violet */
-  --status-packing-bg:     oklch(97% 0.03 300);
-  --status-packing-border: oklch(87% 0.07 300);
-  --status-packing-text:   oklch(42% 0.18 300);
+  /* In Progress — sharp cerulean blue */
+  --status-progress:        oklch(58%  0.24 242);
+  --status-progress-bg:     oklch(96%  0.05 242);
+  --status-progress-border: oklch(82%  0.1  242);
+  --status-progress-text:   oklch(36%  0.19 248);
 
-  --status-dispatched:     oklch(65% 0.18 150);   /* green */
-  --status-dispatched-bg:  oklch(97% 0.03 150);
-  --status-dispatched-border:oklch(85% 0.07 150);
-  --status-dispatched-text:oklch(40% 0.14 150);
+  /* Packing — vivid fuchsia-violet */
+  --status-packing:         oklch(62%  0.27 308);
+  --status-packing-bg:      oklch(97%  0.05 308);
+  --status-packing-border:  oklch(83%  0.1  308);
+  --status-packing-text:    oklch(38%  0.22 310);
+
+  /* Dispatched — rich emerald green */
+  --status-dispatched:      oklch(62%  0.22 155);
+  --status-dispatched-bg:   oklch(96%  0.05 152);
+  --status-dispatched-border:oklch(82% 0.1  152);
+  --status-dispatched-text: oklch(38%  0.17 152);
 }
 
 html.dark {
-  --background: oklch(16% 0.02 265);
-  --foreground: oklch(96% 0.005 265);
+  /* ─── Dark mode — deep indigo-navy ────────────────────── */
+  --background:  oklch(14%  0.025 265);   /* deep navy-indigo */
+  --foreground:  oklch(96%  0.006 265);
 
-  --card: oklch(22% 0.025 265);
-  --card-foreground: oklch(96% 0.005 265);
+  --card:        oklch(19%  0.03  265);   /* slightly lighter than page */
+  --card-foreground: oklch(96% 0.006 265);
 
-  --popover: oklch(22% 0.025 265);
-  --popover-foreground: oklch(96% 0.005 265);
+  --popover:     oklch(19%  0.03  265);
+  --popover-foreground: oklch(96% 0.006 265);
 
-  --border: oklch(28% 0.025 265);
-  --input: oklch(28% 0.025 265);
+  --border:      oklch(30%  0.03  265);
+  --input:       oklch(30%  0.03  265);
 
-  --ring: oklch(63% 0.22 265);
-  --primary: oklch(63% 0.22 265);
-  --primary-foreground: oklch(98% 0.004 265);
+  --ring:        oklch(66%  0.27  265);   /* brighter on dark */
+  --primary:     oklch(66%  0.27  265);
+  --primary-foreground: oklch(14% 0.025 265);   /* dark text on bright primary */
 
-  --secondary: oklch(25% 0.025 265);
-  --secondary-foreground: oklch(94% 0.006 265);
+  --secondary:   oklch(24%  0.035 265);
+  --secondary-foreground: oklch(92% 0.008 265);
 
-  --accent: oklch(25% 0.025 265);
-  --accent-foreground: oklch(94% 0.006 265);
+  --accent:      oklch(24%  0.035 265);
+  --accent-foreground: oklch(92% 0.008 265);
 
-  --muted: oklch(25% 0.025 265);
-  --muted-foreground: oklch(65% 0.015 265);
+  --muted:       oklch(24%  0.035 265);
+  --muted-foreground: oklch(64% 0.02  265);
 
-  --destructive: oklch(40% 0.17 25);
-  --destructive-foreground: oklch(96% 0.005 265);
+  --destructive: oklch(52%  0.25  25);
+  --destructive-foreground: oklch(97% 0 0);
 
-  /* Dark status — slightly more saturated to compensate for dark backgrounds */
-  --status-pending:        oklch(78% 0.17 75);
-  --status-pending-bg:     oklch(22% 0.06 70);
-  --status-pending-border: oklch(35% 0.1 70);
-  --status-pending-text:   oklch(82% 0.15 78);
+  /* ─── Dark status — saturated for dark backgrounds ─────── */
+  --status-pending:         oklch(78%  0.19  74);
+  --status-pending-bg:      oklch(21%  0.07  72);
+  --status-pending-border:  oklch(38%  0.13  72);
+  --status-pending-text:    oklch(84%  0.16  78);
 
-  --status-progress:       oklch(65% 0.2 245);
-  --status-progress-bg:    oklch(22% 0.06 245);
-  --status-progress-border:oklch(35% 0.1 245);
-  --status-progress-text:  oklch(72% 0.18 245);
+  --status-progress:        oklch(68%  0.24 242);
+  --status-progress-bg:     oklch(21%  0.07 242);
+  --status-progress-border: oklch(38%  0.12 242);
+  --status-progress-text:   oklch(75%  0.22 242);
 
-  --status-packing:        oklch(68% 0.22 300);
-  --status-packing-bg:     oklch(22% 0.06 300);
-  --status-packing-border: oklch(35% 0.1 300);
-  --status-packing-text:   oklch(75% 0.2 300);
+  --status-packing:         oklch(72%  0.27 308);
+  --status-packing-bg:      oklch(21%  0.07 308);
+  --status-packing-border:  oklch(38%  0.13 308);
+  --status-packing-text:    oklch(78%  0.24 308);
 
-  --status-dispatched:     oklch(65% 0.18 150);
-  --status-dispatched-bg:  oklch(22% 0.06 150);
-  --status-dispatched-border:oklch(35% 0.1 150);
-  --status-dispatched-text:oklch(72% 0.16 150);
+  --status-dispatched:      oklch(68%  0.22 155);
+  --status-dispatched-bg:   oklch(21%  0.07 155);
+  --status-dispatched-border:oklch(38% 0.12 155);
+  --status-dispatched-text: oklch(75%  0.19 155);
 }
 
 * {
@@ -133,6 +144,10 @@ body {
   .pb-safe {
     padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
   }
+
+  /* Status accent left-borders — for order card visual coding */
+  .status-border-pending    { border-left-color: var(--status-pending);    }
+  .status-border-progress   { border-left-color: var(--status-progress);   }
+  .status-border-packing    { border-left-color: var(--status-packing);    }
+  .status-border-dispatched { border-left-color: var(--status-dispatched); }
 }
-
-
