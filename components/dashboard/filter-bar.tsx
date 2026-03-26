@@ -61,9 +61,9 @@ export function FilterBar({
           </div>
 
           {/* M5: aria-label added to search input */}
-          <div className="relative flex-1">
+          <div className="relative flex-1 transition-all duration-200">
             <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <svg className="w-[18px] h-[18px] text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <svg className="w-[18px] h-[18px] text-muted-foreground transition-colors duration-200 [[data-focused]_&]:text-primary" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </div>
             <input
               type="text"
@@ -71,7 +71,7 @@ export function FilterBar({
               placeholder="Search orders..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full h-11 pl-10 pr-3 rounded-xl border border-border bg-card text-foreground text-sm focus:ring-2 focus:ring-ring shadow-sm transition-colors placeholder:text-muted-foreground outline-none"
+              className="block w-full h-11 pl-10 pr-3 rounded-xl border border-border bg-card text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-transparent shadow-sm transition-[box-shadow,border-color] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] placeholder:text-muted-foreground outline-none"
             />
           </div>
         </div>

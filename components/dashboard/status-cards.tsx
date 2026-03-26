@@ -19,26 +19,27 @@ export function StatusCards({ counts, activeFilter, onFilterClick }: StatusCards
 
   return (
     <div className="grid grid-cols-2 gap-3 mb-6">
-      {statuses.map((status) => {
+      {statuses.map((status, i) => {
         const { bg, text, border, icon } = getStatusCardColor(status);
         const isActive = activeFilter === status;
+        const staggerClass = ['animate-stagger-1','animate-stagger-2','animate-stagger-3','animate-stagger-4'][i];
 
         return (
           <button
             key={status}
             onClick={() => onFilterClick(isActive ? 'All' : status)}
             className={cn(
-              'flex flex-col p-4 rounded-2xl border text-left transition-all duration-200 min-tap relative overflow-hidden',
+              'animate-fade-up flex flex-col p-4 rounded-2xl border text-left transition-[transform,box-shadow,opacity] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] min-tap relative overflow-hidden',
               bg,
               border,
+              staggerClass,
               isActive
-                ? 'ring-2 ring-inset shadow-sm scale-[1.01]'
-                : 'opacity-85 hover:opacity-100 hover:shadow-sm active:scale-[0.98]'
+                ? 'ring-2 ring-inset shadow-sm scale-[1.01] active:scale-[0.99]'
+                : 'opacity-85 hover:opacity-100 hover:shadow-sm hover:scale-[1.01] active:scale-[0.98]'
             )}
             style={isActive ? { '--tw-ring-color': 'currentColor' } as any : {}}
             aria-pressed={isActive}
           >
-            {/* Colored bar at top for active state */}
             {isActive && (
               <div className={cn('absolute top-0 left-0 right-0 h-[3px]', icon, 'bg-current')} aria-hidden="true" />
             )}
@@ -46,7 +47,7 @@ export function StatusCards({ counts, activeFilter, onFilterClick }: StatusCards
               <span className={cn('text-[11px] font-bold tracking-widest uppercase', text)}>{status}</span>
               <div className={cn('w-3 h-3 rounded-full mt-0.5 shrink-0', icon, 'bg-current')} aria-hidden="true" />
             </div>
-            <span className={cn('text-4xl font-extrabold tracking-tighter leading-none', text)}>
+            <span className={cn('animate-count-pop text-4xl font-extrabold tracking-tighter leading-none', staggerClass, text)}>
               {counts[status]}
             </span>
             <span className={cn('text-[10px] font-bold mt-2 uppercase tracking-widest', text, 'opacity-60')}>

@@ -25,9 +25,9 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-sm">
-      {/* Brand header */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600 mb-4 shadow-lg shadow-indigo-200">
+      {/* Brand header — staggered entrance */}
+      <div className="text-center mb-8 animate-fade-up">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary mb-4 shadow-[0_4px_20px_-4px_var(--primary)] animate-spin-in">
           <svg
             className="w-8 h-8 text-white"
             xmlns="http://www.w3.org/2000/svg"
@@ -45,23 +45,23 @@ export default function LoginPage() {
             <line x1="9" y1="16" x2="13" y2="16" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">
+        <h1 className="text-2xl font-bold text-foreground tracking-tight animate-fade-up animate-stagger-1">
           OrderFlow
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-sm text-muted-foreground mt-1 animate-fade-up animate-stagger-2">
           Sign in to your account
         </p>
       </div>
 
-      {/* Login card */}
-      <div className="bg-card text-card-foreground rounded-2xl shadow-xl border border-border p-6">
-        {/* Inline error message */}
+      {/* Login card — scales in after header */}
+      <div className="bg-card text-card-foreground rounded-2xl shadow-xl border border-border p-6 animate-scale-in animate-stagger-3">
+        {/* Inline error message — shakes on appear */}
         {error && (
           <div
             id="login-error"
             role="alert"
             aria-live="polite"
-            className="mb-5 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive"
+            className="mb-5 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive animate-shake"
           >
             {error}
           </div>
@@ -94,7 +94,7 @@ export default function LoginPage() {
         </form>
       </div>
 
-      <p className="text-center text-xs text-gray-400 mt-6">
+      <p className="text-center text-xs text-muted-foreground mt-6 animate-fade-up animate-stagger-4">
         Contact your admin if you need access.
       </p>
     </div>

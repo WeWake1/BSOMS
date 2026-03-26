@@ -150,4 +150,90 @@ body {
   .status-border-progress   { border-left-color: var(--status-progress);   }
   .status-border-packing    { border-left-color: var(--status-packing);    }
   .status-border-dispatched { border-left-color: var(--status-dispatched); }
+
+  /* ─── Entrance animations ────────────────────────────────── */
+  .animate-fade-up {
+    animation: fade-up var(--duration-enter, 420ms) var(--ease-out-expo) both;
+  }
+  .animate-fade-in {
+    animation: fade-in var(--duration-enter, 300ms) var(--ease-out-quart) both;
+  }
+  .animate-scale-in {
+    animation: scale-in var(--duration-enter, 320ms) var(--ease-out-expo) both;
+  }
+  .animate-shake {
+    animation: shake 400ms var(--ease-out-quart);
+  }
+  .animate-spin-in {
+    animation: spin-in var(--duration-enter, 280ms) var(--ease-out-expo) both;
+  }
+  .animate-count-pop {
+    animation: count-pop 300ms var(--ease-out-expo) both;
+  }
+
+  /* Stagger helpers — use style={{ animationDelay: '...' }} */
+  .animate-stagger-1  { animation-delay: 60ms;  }
+  .animate-stagger-2  { animation-delay: 120ms; }
+  .animate-stagger-3  { animation-delay: 180ms; }
+  .animate-stagger-4  { animation-delay: 240ms; }
 }
+
+/* ─── Keyframes ──────────────────────────────────────────── */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1);    }
+}
+
+@keyframes count-pop {
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0);    }
+  20%       { transform: translateX(-6px); }
+  40%       { transform: translateX(6px);  }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px);  }
+}
+
+@keyframes spin-in {
+  from { opacity: 0; transform: scale(0.6) rotate(-15deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0deg);    }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(1.5); opacity: 0;   }
+}
+
+/* ─── Easing custom properties (available app-wide) ─────── */
+:root {
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-enter: 380ms;
+  --duration-exit:  240ms;
+}
+
+/* ─── Reduced motion — accessibility ────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+

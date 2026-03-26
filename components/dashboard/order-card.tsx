@@ -25,7 +25,7 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }
   return (
     <button
       className={cn(
-        "group block w-full text-left p-4 rounded-2xl border-l-4 border border-border bg-card text-card-foreground shadow-sm hover:shadow-md transition-all duration-200 min-tap relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "group block w-full text-left p-4 rounded-2xl border-l-4 border border-border bg-card text-card-foreground shadow-sm hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] active:shadow-sm transition-[transform,box-shadow,border-color] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] min-tap relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         statusBorderClass,
         className
       )}
@@ -88,7 +88,7 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }
         </div>
         <div className="text-right">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Qty</p>
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 [color:var(--primary)] rounded-full font-bold text-sm">
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 [color:var(--primary)] rounded-full font-bold text-sm transition-transform duration-150 group-hover:scale-105">
             {order.qty}
           </div>
         </div>

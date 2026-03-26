@@ -118,7 +118,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
       {/* TopBar */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6 animate-fade-up">
         <div>
           <h1 className="text-fluid-2xl font-extrabold text-foreground tracking-tight">Orders</h1>
           <p className="text-sm font-medium text-muted-foreground mt-1">Live overview of workflow</p>
