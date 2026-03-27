@@ -176,6 +176,20 @@ body {
   .animate-stagger-2  { animation-delay: 120ms; }
   .animate-stagger-3  { animation-delay: 180ms; }
   .animate-stagger-4  { animation-delay: 240ms; }
+
+  /* ─── Realtime event animations ─────────────────────────── */
+  /* Flash: card glows when updated by a colleague via Realtime */
+  .animate-card-flash {
+    animation: card-flash 1.6s var(--ease-out-expo) both;
+  }
+  /* New: fresh card slides in from slightly above when inserted via Realtime */
+  .animate-new-order {
+    animation: new-order-in 500ms var(--ease-out-expo) both;
+  }
+  /* Live dot: breathing pulse on the realtime indicator */
+  .animate-live-pulse {
+    animation: live-pulse 2s ease-in-out infinite;
+  }
 }
 
 /* ─── Keyframes ──────────────────────────────────────────── */
@@ -216,6 +230,47 @@ body {
 @keyframes pulse-ring {
   0%   { transform: scale(1);   opacity: 0.8; }
   100% { transform: scale(1.5); opacity: 0;   }
+}
+
+@keyframes card-flash {
+  0%   { box-shadow: 0 0 0 0px var(--flash-color, oklch(58% 0.27 265 / 0.6)); }
+  20%  { box-shadow: 0 0 0 6px var(--flash-color, oklch(58% 0.27 265 / 0.4)); }
+  100% { box-shadow: 0 0 0 0px var(--flash-color, oklch(58% 0.27 265 / 0)); }
+}
+
+@keyframes new-order-in {
+  from { opacity: 0; transform: translateX(-16px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes live-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1;   }
+  50%       { transform: scale(1.45); opacity: 0.5; }
+}
+
+/* ─── View Transitions ──────────────────────────────── */
+@supports (view-transition-name: none) {
+  /* Root cross-fade — subtle, let the shared element do the work */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 200ms;
+    animation-timing-function: var(--ease-out-expo);
+  }
+
+  /* Shared order-number element: morph between card and drawer title */
+  ::view-transition-old(order-num-shared) {
+    animation: 260ms var(--ease-out-expo) both vt-exit;
+  }
+  ::view-transition-new(order-num-shared) {
+    animation: 340ms var(--ease-out-expo) both vt-enter;
+  }
+}
+
+@keyframes vt-exit {
+  to { opacity: 0; transform: scale(0.85) translateY(-4px); }
+}
+@keyframes vt-enter {
+  from { opacity: 0; transform: scale(0.85) translateY(4px); }
 }
 
 /* ─── Easing custom properties (available app-wide) ─────── */

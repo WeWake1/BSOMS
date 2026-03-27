@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { OrderWithCategory, Category } from '@/types/database';
 
@@ -9,10 +9,34 @@ export function useOrders() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // createClient() needs to be handled carefully in a hook to avoid recreating it on every render.
-  // We can just instantiate it once.
+  const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const [isConnected, setIsConnected] = useState(false);
+
+  const flashTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const newTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
   const [supabase] = useState(() => createClient());
+
+  const addFlash = (id: string) => {
+    setFlashIds((prev) => new Set(prev).add(id));
+    const existing = flashTimers.current.get(id);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      setFlashIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      flashTimers.current.delete(id);
+    }, 1800);
+    flashTimers.current.set(id, t);
+  };
+
+  const addNew = (id: string) => {
+    setNewIds((prev) => new Set(prev).add(id));
+    const t = setTimeout(() => {
+      setNewIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      newTimers.current.delete(id);
+    }, 900);
+    newTimers.current.set(id, t);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -20,28 +44,21 @@ export function useOrders() {
     async function fetchInitialData() {
       try {
         setLoading(true);
-        // Fetch categories first
         const { data: cats, error: catsError } = await supabase
           .from('categories')
           .select('*')
           .order('name');
-          
+
         if (catsError) throw catsError;
         if (mounted) setCategories(cats || []);
 
-        // Fetch orders joined with categories
         const { data: ords, error: ordsError } = await supabase
           .from('orders')
           .select('*, categories(*)')
           .order('created_at', { ascending: false });
 
         if (ordsError) throw ordsError;
-        
-        // Supabase join returns category as an array or object depending on relation,
-        // since it's a many-to-one (orders -> category), it usually returns a single object.
-        if (mounted) {
-          setOrders((ords as unknown as OrderWithCategory[]) || []);
-        }
+        if (mounted) setOrders((ords as unknown as OrderWithCategory[]) || []);
       } catch (err: any) {
         console.error('Error fetching data:', err);
         if (mounted) setError(err.message);
@@ -52,7 +69,6 @@ export function useOrders() {
 
     fetchInitialData();
 
-    // Set up Realtime Subscription for Orders
     const orderChannel = supabase
       .channel('public:orders')
       .on(
@@ -69,6 +85,7 @@ export function useOrders() {
               .then(({ data: cat }) => {
                 newOrder.categories = cat;
                 setOrders((prev) => [newOrder as OrderWithCategory, ...prev]);
+                addNew(newOrder.id);
               });
           } else if (payload.eventType === 'UPDATE') {
             const updatedOrder = payload.new as any;
@@ -82,6 +99,7 @@ export function useOrders() {
                 setOrders((prev) =>
                   prev.map((o) => (o.id === updatedOrder.id ? (updatedOrder as OrderWithCategory) : o))
                 );
+                addFlash(updatedOrder.id);
               });
           } else if (payload.eventType === 'DELETE') {
             const oldRecord = payload.old as any;
@@ -89,9 +107,10 @@ export function useOrders() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (mounted) setIsConnected(status === 'SUBSCRIBED');
+      });
 
-    // Set up Realtime Subscription for Categories
     const categoryChannel = supabase
       .channel('public:categories')
       .on(
@@ -111,10 +130,12 @@ export function useOrders() {
 
     return () => {
       mounted = false;
+      flashTimers.current.forEach(clearTimeout);
+      newTimers.current.forEach(clearTimeout);
       supabase.removeChannel(orderChannel);
       supabase.removeChannel(categoryChannel);
     };
   }, [supabase]);
 
-  return { orders, categories, loading, error };
+  return { orders, categories, loading, error, flashIds, newIds, isConnected };
 }

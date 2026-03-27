@@ -8,10 +8,11 @@ interface DrawerProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  title?: string;
+  title?: React.ReactNode;
+  titleTransitionName?: string;
 }
 
-export function Drawer({ isOpen, onClose, children, title }: DrawerProps) {
+export function Drawer({ isOpen, onClose, children, title, titleTransitionName }: DrawerProps) {
   const [mounted, setMounted] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -71,7 +72,7 @@ export function Drawer({ isOpen, onClose, children, title }: DrawerProps) {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title ?? 'Bottom sheet'}
+        aria-label={title ? String(title) : 'Bottom sheet'}
         tabIndex={-1}
         className={cn(
           // M2: expo-out easing for native-feeling bottom-sheet slide
@@ -87,7 +88,10 @@ export function Drawer({ isOpen, onClose, children, title }: DrawerProps) {
 
         {title && (
           <div className="flex items-center justify-between px-6 pb-2 border-b border-border shrink-0">
-            <h2 className="text-lg font-bold text-foreground tracking-tight">{title}</h2>
+            <h2
+              className="text-lg font-bold text-foreground tracking-tight"
+              style={titleTransitionName ? { viewTransitionName: titleTransitionName } as any : {}}
+            >{title}</h2>
             <button
               onClick={onClose}
               className="w-11 h-11 flex items-center justify-center rounded-full bg-muted text-muted-foreground hover:bg-muted/80 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"

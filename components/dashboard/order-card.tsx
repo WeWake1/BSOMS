@@ -10,9 +10,11 @@ interface OrderCardProps {
   onStatusChange?: (status: OrderStatus) => void;
   onClick?: () => void;
   className?: string;
+  isNew?: boolean;
+  isFlash?: boolean;
 }
 
-export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }: OrderCardProps) {
+export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, isNew, isFlash }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
 
   const statusBorderClass = {
@@ -22,19 +24,33 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className }
     'Dispatched':  'status-border-dispatched',
   }[order.status];
 
+  // Map status to its flash color CSS var for the card-flash glow
+  const flashColor = {
+    'Pending':     'var(--status-pending)',
+    'In Progress': 'var(--status-progress)',
+    'Packing':     'var(--status-packing)',
+    'Dispatched':  'var(--status-dispatched)',
+  }[order.status];
+
   return (
     <button
       className={cn(
         "group block w-full text-left p-4 rounded-2xl border-l-4 border border-border bg-card text-card-foreground shadow-sm hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.97] active:shadow-sm transition-[transform,box-shadow,border-color] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] min-tap relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         statusBorderClass,
+        isNew && 'animate-new-order',
+        isFlash && 'animate-card-flash',
         className
       )}
+      style={isFlash ? { '--flash-color': flashColor } as any : {}}
       onClick={onClick}
     >
       <div className="flex justify-between items-start gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[17px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">
+            <span
+              className="text-[17px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors"
+              style={{ viewTransitionName: `order-num-${order.id}` } as any}
+            >
               {order.order_no}
             </span>
             {order.categories && catColor ? (

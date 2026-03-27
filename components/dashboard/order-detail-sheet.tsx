@@ -100,7 +100,12 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
 
   return (
     <>
-      <Drawer isOpen={isOpen && !photoExpanded} onClose={onClose} title={order.order_no}>
+      <Drawer
+        isOpen={isOpen && !photoExpanded}
+        onClose={onClose}
+        title={order.order_no}
+        titleTransitionName={`order-num-${order.id}`}
+      >
         <div className="flex flex-col gap-5 pt-2">
 
           <div className="flex justify-between items-start">

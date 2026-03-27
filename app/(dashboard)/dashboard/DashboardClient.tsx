@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { flushSync } from 'react-dom';
 import { useOrders } from '@/hooks/useOrders';
 import { StatusCards } from '@/components/dashboard/status-cards';
 import { FilterBar } from '@/components/dashboard/filter-bar';
@@ -16,7 +17,7 @@ import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategory } from '@/types/database';
 
 export function DashboardClient({ user }: { user: AuthUser }) {
-  const { orders, categories, loading, error } = useOrders();
+  const { orders, categories, loading, error, flashIds, newIds, isConnected } = useOrders();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -156,7 +157,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           Couldn't load orders. Please refresh the page.
         </div>
       ) : (
-        <StatusCards counts={counts} activeFilter={selectedStatus} onFilterClick={setSelectedStatus} />
+        <StatusCards counts={counts} activeFilter={selectedStatus} onFilterClick={setSelectedStatus} isConnected={isConnected} />
       )}
 
       <FilterBar
@@ -195,7 +196,16 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 order={order} 
                 isAdmin={isAdmin}
                 onStatusChange={(status) => handleStatusChange(order.id, status)}
-                onClick={() => setSelectedOrderId(order.id)} 
+                isNew={newIds.has(order.id)}
+                isFlash={flashIds.has(order.id)}
+                onClick={() => {
+                  const openDetail = () => flushSync(() => setSelectedOrderId(order.id));
+                  if (typeof document !== 'undefined' && 'startViewTransition' in document) {
+                    (document as any).startViewTransition(openDetail);
+                  } else {
+                    openDetail();
+                  }
+                }} 
               />
             ))
           ) : (
