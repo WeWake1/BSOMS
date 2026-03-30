@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { flushSync } from 'react-dom';
+import { toPng } from 'html-to-image';
 import { useOrders } from '@/hooks/useOrders';
 import { StatusCards } from '@/components/dashboard/status-cards';
 import { FilterBar } from '@/components/dashboard/filter-bar';
@@ -12,6 +13,7 @@ import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
 import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
 import { generateOrderReportPDF } from '@/lib/pdf-export';
 import { createClient } from '@/lib/supabase/client';
+import { formatDate } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategory } from '@/types/database';
@@ -23,6 +25,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | 'All'>('All');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'order-asc'>('date-desc');
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -61,6 +64,51 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       toast.success('Order marked as Dispatched!');
     }
     setDispatchPromptOrder(null);
+  };
+
+  const dashboardRef = useRef<HTMLDivElement>(null);
+  const tableExportRef = useRef<HTMLDivElement>(null);
+
+  const handleExportImage = () => {
+    if (!tableExportRef.current) return;
+    
+    toast.promise(
+      new Promise<void>(async (resolve, reject) => {
+        try {
+          // Allow UI to update and close dropdown before capturing
+          await new Promise(r => setTimeout(r, 150));
+          
+          const dataUrl = await toPng(tableExportRef.current!, {
+            cacheBust: true,
+            pixelRatio: window.devicePixelRatio || 2,
+            backgroundColor: '#ffffff', // Report background is always white
+            filter: (node) => {
+              // Exclude specific elements like the dropdown overlay
+              if (node.nodeType === 1) { // Node.ELEMENT_NODE
+                const el = node as HTMLElement;
+                if (el.classList && el.classList.contains('hidden-from-print')) return false;
+              }
+              return true;
+            }
+          });
+          
+          const link = document.createElement('a');
+          link.href = dataUrl;
+          const dateStr = new Date().toISOString().split('T')[0];
+          link.download = `OrderFlow_Export_${dateStr}.png`;
+          link.click();
+          resolve();
+        } catch (err) {
+          console.error('Export Error:', err);
+          reject(err);
+        }
+      }),
+      {
+        loading: 'Generating image...',
+        success: 'Image exported successfully!',
+        error: 'Failed to export image.',
+      }
+    );
   };
 
   const counts = useMemo(() => {
@@ -117,9 +165,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-8" ref={dashboardRef}>
       {/* TopBar */}
-      <div className="flex justify-between items-center mb-6 animate-fade-up">
+      <div className="relative z-50 flex justify-between items-center mb-6 animate-fade-up">
         <div>
           <h1 className="text-fluid-2xl font-extrabold text-foreground tracking-tight">Orders</h1>
           <p className="text-sm font-medium text-muted-foreground mt-1">
@@ -127,18 +175,50 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* H4: Single export button, visible on all screen sizes */}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => generateOrderReportPDF(filteredOrders)}
-            disabled={filteredOrders.length === 0}
-            className="h-9"
-            aria-label="Export PDF report"
-          >
-            <svg className="w-4 h-4 sm:mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span className="hidden sm:inline">Export</span>
-          </Button>
+          {/* H4: Export dropdown button */}
+          <div className="relative">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+              disabled={filteredOrders.length === 0}
+              className="h-9"
+              aria-label="Export options"
+            >
+              <svg className="w-4 h-4 sm:mr-1.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span className="hidden sm:inline">Export</span>
+              <svg className="w-3 h-3 ml-1.5 opacity-70" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </Button>
+            
+            {isExportMenuOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsExportMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-1 w-44 bg-card border border-border rounded-xl shadow-lg z-50 p-1 flex flex-col animate-in fade-in zoom-in-95 duration-100 hidden-from-print">
+                  <button
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      generateOrderReportPDF(filteredOrders);
+                    }}
+                    className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium"
+                  >
+                    Export as PDF
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      handleExportImage();
+                    }}
+                    className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium mt-0.5"
+                  >
+                    Export as PNG image
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           <button
             onClick={() => setIsSettingsOpen(true)}
@@ -305,6 +385,73 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           </div>
         </div>
       )}
+
+      {/* Off-screen Image Export Container */}
+      <div 
+        className="absolute left-[-9999px] top-0 pointer-events-none"
+        aria-hidden="true"
+      >
+        <div 
+          ref={tableExportRef} 
+          className="bg-white p-8"
+          style={{ width: '1200px' }}
+        >
+          {/* Header */}
+          <div className="flex justify-between items-end border-b border-gray-200 pb-4 mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">OrderFlow — Order Report</h1>
+            </div>
+            <div className="text-sm text-gray-500 text-right font-medium">
+              Exported: {new Date().toLocaleDateString('en-IN', {
+                day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+              })}
+            </div>
+          </div>
+          
+          {/* Table */}
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="bg-indigo-600 text-white">
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Order No</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[18%]">Customer Name</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[12%]">Category</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[12%]">Status</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Date</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Due Date</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Dispatch</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 text-center w-[6%]">Qty</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[12%]">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredOrders.map((o, i) => (
+                <tr key={o.id} className={i % 2 === 0 ? "bg-white text-gray-800" : "bg-gray-50 text-gray-800"}>
+                  <td className="py-2.5 px-4 border border-gray-200">{o.order_no}</td>
+                  <td className="py-2.5 px-4 border border-gray-200">{o.customer_name}</td>
+                  <td className="py-2.5 px-4 border border-gray-200">{o.categories?.name || 'Uncategorized'}</td>
+                  <td className="py-2.5 px-4 border border-gray-200">{o.status}</td>
+                  <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.date)}</td>
+                  <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.due_date)}</td>
+                  <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.dispatch_date)}</td>
+                  <td className="py-2.5 px-4 border border-gray-200 text-center font-medium">{o.qty}</td>
+                  <td className="py-2.5 px-4 border border-gray-200 break-words">{o.description || ''}</td>
+                </tr>
+              ))}
+              {filteredOrders.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-6 text-center text-gray-500 border border-gray-200">No orders to display.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          
+          {/* Footer */}
+          <div className="mt-6 text-center text-xs text-gray-400">
+            OrderFlow System — Generated Report
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
