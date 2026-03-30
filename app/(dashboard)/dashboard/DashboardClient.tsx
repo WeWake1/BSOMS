@@ -196,7 +196,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   className="fixed inset-0 z-40" 
                   onClick={() => setIsExportMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-full mt-1 w-44 bg-card border border-border rounded-xl shadow-lg z-50 p-1 flex flex-col animate-in fade-in zoom-in-95 duration-100 hidden-from-print">
+                <div className="absolute right-0 top-full mt-1 min-w-[130px] w-max bg-card border border-border rounded-xl shadow-lg z-50 p-1 flex flex-col animate-in fade-in zoom-in-95 duration-100 hidden-from-print">
                   <button
                     onClick={() => {
                       setIsExportMenuOpen(false);
@@ -213,7 +213,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                     }}
                     className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium mt-0.5"
                   >
-                    Export as PNG image
+                    Export as PNG
                   </button>
                 </div>
               </>
