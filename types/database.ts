@@ -26,8 +26,28 @@ export interface Order {
   updated_at: string;
 }
 
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  item_label: string | null;
+  date: string;
+  due_date: string;
+  dispatch_date: string | null;
+  length: number | null;
+  width: number | null;
+  qty: number;
+  description: string | null;
+  photo_url: string | null;
+  audio_url: string | null;
+  created_at: string;
+}
+
 export interface OrderWithCategory extends Order {
   categories: Category | null;
+}
+
+export interface OrderWithCategoryAndItems extends OrderWithCategory {
+  order_items: OrderItem[];
 }
 
 export interface Profile {
@@ -47,6 +67,14 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Omit<Order, 'id' | 'created_at'>>;
+      };
+      order_items: {
+        Row: OrderItem;
+        Insert: Omit<OrderItem, 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Omit<OrderItem, 'id' | 'created_at'>>;
       };
       categories: {
         Row: Category;

@@ -69,6 +69,23 @@ create table profiles (
   role text not null check (role in ('admin', 'viewer'))
 );
 
+-- Order items table (sub-orders within a single order)
+create table order_items (
+  id uuid primary key default uuid_generate_v4(),
+  order_id uuid references orders(id) on delete cascade not null,
+  item_label text,
+  date date not null,
+  due_date date not null,
+  dispatch_date date,
+  length numeric,
+  width numeric,
+  qty integer not null default 1,
+  description text,
+  photo_url text,
+  audio_url text,
+  created_at timestamptz default now()
+);
+
 -- Auto-update timestamp trigger
 create or replace function update_updated_at()
 returns trigger as $$
@@ -138,6 +155,21 @@ create policy "Admin can update categories" on categories
 create policy "Admin can delete categories" on categories
   for delete using (get_user_role() = 'admin');
 
+-- Order items (sub-orders): SELECT for all authenticated, full CRUD for admin
+alter table order_items enable row level security;
+
+create policy "Authenticated users can view order items" on order_items
+  for select using (auth.role() = 'authenticated');
+
+create policy "Admin can insert order items" on order_items
+  for insert with check (get_user_role() = 'admin');
+
+create policy "Admin can update order items" on order_items
+  for update using (get_user_role() = 'admin');
+
+create policy "Admin can delete order items" on order_items
+  for delete using (get_user_role() = 'admin');
+
 -- Profiles: SELECT for all authenticated, users can update own
 create policy "Authenticated users can view profiles" on profiles
   for select using (auth.role() = 'authenticated');
@@ -182,9 +214,10 @@ create policy "Admin can delete audio"
 ```
 
 #### Enable Realtime
-Go to **Database → Replication** and enable the `orders` table. Or via SQL:
+Go to **Database → Replication** and enable the `orders` and `order_items` tables. Or via SQL:
 ```sql
 alter table orders replica identity full;
+alter table order_items replica identity full;
 ```
 
 ### 3. Configure Environment Variables

@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
-import type { OrderWithCategory, Category, OrderStatus } from '@/types/database';
+import type { OrderWithCategoryAndItems, Category, OrderStatus } from '@/types/database';
 import toast from 'react-hot-toast';
 
 interface OrderFormSheetProps {
-  order: OrderWithCategory | null;
+  order: OrderWithCategoryAndItems | null;
   categories: Category[];
   isOpen: boolean;
   onClose: () => void;

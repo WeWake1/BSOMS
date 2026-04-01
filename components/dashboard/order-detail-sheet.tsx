@@ -6,11 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
-import type { OrderWithCategory } from '@/types/database';
+import type { OrderWithCategoryAndItems } from '@/types/database';
 import toast from 'react-hot-toast';
 
 interface OrderDetailSheetProps {
-  order: OrderWithCategory | null;
+  order: OrderWithCategoryAndItems | null;
   isOpen: boolean;
   onClose: () => void;
   isAdmin: boolean;

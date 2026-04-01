@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/client';
 import { formatDate } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import type { AuthUser } from '@/lib/auth';
-import type { OrderStatus, OrderWithCategory } from '@/types/database';
+import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
 
 export function DashboardClient({ user }: { user: AuthUser }) {
   const { orders, categories, loading, error, flashIds, newIds, isConnected } = useOrders();

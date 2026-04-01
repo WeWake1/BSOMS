@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { OrderWithCategory, Category } from '@/types/database';
+import type { OrderWithCategoryAndItems, Category, OrderItem } from '@/types/database';
 
 export function useOrders() {
-  const [orders, setOrders] = useState<OrderWithCategory[]>([]);
+  const [orders, setOrders] = useState<OrderWithCategoryAndItems[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +38,23 @@ export function useOrders() {
     newTimers.current.set(id, t);
   };
 
+  /** Re-fetch order_items for a specific order and update state */
+  const refreshOrderItems = async (orderId: string) => {
+    const { data: items } = await supabase
+      .from('order_items')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: true });
+
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? { ...o, order_items: (items as OrderItem[]) || [] }
+          : o
+      )
+    );
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -54,11 +71,11 @@ export function useOrders() {
 
         const { data: ords, error: ordsError } = await supabase
           .from('orders')
-          .select('*, categories(*)')
+          .select('*, categories(*), order_items(*)')
           .order('created_at', { ascending: false });
 
         if (ordsError) throw ordsError;
-        if (mounted) setOrders((ords as unknown as OrderWithCategory[]) || []);
+        if (mounted) setOrders((ords as unknown as OrderWithCategoryAndItems[]) || []);
       } catch (err: any) {
         console.error('Error fetching data:', err);
         if (mounted) setError(err.message);
@@ -84,7 +101,8 @@ export function useOrders() {
               .single()
               .then(({ data: cat }) => {
                 newOrder.categories = cat;
-                setOrders((prev) => [newOrder as OrderWithCategory, ...prev]);
+                newOrder.order_items = []; // New orders start with no sub-items
+                setOrders((prev) => [newOrder as OrderWithCategoryAndItems, ...prev]);
                 addNew(newOrder.id);
               });
           } else if (payload.eventType === 'UPDATE') {
@@ -96,8 +114,13 @@ export function useOrders() {
               .single()
               .then(({ data: cat }) => {
                 updatedOrder.categories = cat;
+                // Preserve existing order_items when updating the order row
                 setOrders((prev) =>
-                  prev.map((o) => (o.id === updatedOrder.id ? (updatedOrder as OrderWithCategory) : o))
+                  prev.map((o) =>
+                    o.id === updatedOrder.id
+                      ? { ...(updatedOrder as OrderWithCategoryAndItems), order_items: o.order_items || [] }
+                      : o
+                  )
                 );
                 addFlash(updatedOrder.id);
               });
@@ -110,6 +133,24 @@ export function useOrders() {
       .subscribe((status) => {
         if (mounted) setIsConnected(status === 'SUBSCRIBED');
       });
+
+    // Realtime subscription for order_items changes
+    const orderItemsChannel = supabase
+      .channel('public:order_items')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_items' },
+        (payload) => {
+          // For any change to order_items, re-fetch the parent order's items
+          const orderId =
+            (payload.new as any)?.order_id || (payload.old as any)?.order_id;
+          if (orderId) {
+            refreshOrderItems(orderId);
+            addFlash(orderId); // Flash the parent order card
+          }
+        }
+      )
+      .subscribe();
 
     const categoryChannel = supabase
       .channel('public:categories')
@@ -133,6 +174,7 @@ export function useOrders() {
       flashTimers.current.forEach(clearTimeout);
       newTimers.current.forEach(clearTimeout);
       supabase.removeChannel(orderChannel);
+      supabase.removeChannel(orderItemsChannel);
       supabase.removeChannel(categoryChannel);
     };
   }, [supabase]);
