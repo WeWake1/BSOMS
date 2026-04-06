@@ -4,10 +4,283 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Drawer } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { createClient } from '@/lib/supabase/client';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 import type { OrderWithCategoryAndItems, Category, OrderStatus, SubItemDraft, OrderFormDraft } from '@/types/database';
 import toast from 'react-hot-toast';
+
+function cn(...classes: (string | undefined | false | null)[]) {
+  return classes.filter(Boolean).join(' ');
+}
+
+// ── Drag-to-reorder hook ─────────────────────────────────────────────────────
+
+function useDragSort<T>(items: T[], setItems: (items: T[]) => void) {
+  const dragIndex = useRef<number | null>(null);
+
+  const handleDragStart = (index: number) => (e: React.DragEvent) => {
+    dragIndex.current = index;
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (index: number) => (e: React.DragEvent) => {
+    e.preventDefault();
+    if (dragIndex.current === null || dragIndex.current === index) return;
+    const newItems = [...items];
+    const [moved] = newItems.splice(dragIndex.current, 1);
+    newItems.splice(index, 0, moved);
+    dragIndex.current = index;
+    setItems(newItems);
+  };
+
+  const handleDragEnd = () => { dragIndex.current = null; };
+
+  const handleTouchStart = (index: number) => () => {
+    dragIndex.current = index;
+  };
+
+  const handleTouchEnd = () => { dragIndex.current = null; };
+
+  return { handleDragStart, handleDragOver, handleDragEnd, handleTouchStart, handleTouchEnd };
+}
+
+// ── Sub-item photo/audio fields ──────────────────────────────────────────────
+
+function SubItemPhotoField({
+  tempId, photoPath, isUploading, onUpload, onRemove,
+}: {
+  tempId: string; photoPath: string | null; isUploading: boolean;
+  onUpload: (file: File) => void; onRemove: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium text-foreground">Photo</label>
+      {photoPath ? (
+        <div className="relative w-full h-28 bg-muted rounded-xl overflow-hidden border border-border group">
+          <button type="button" onClick={onRemove}
+            className="absolute top-2 right-2 bg-foreground/60 text-card rounded-full w-7 h-7 flex items-center justify-center hover:bg-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-tap"
+            aria-label="Remove item photo">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+          </button>
+          <div className="w-full h-full bg-muted flex items-center justify-center text-xs text-muted-foreground">Photo attached</div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => ref.current?.click()}
+          className="w-full h-14 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors min-tap"
+          disabled={isUploading}>
+          {isUploading ? <span>Uploading...</span> : <><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Add photo</span></>}
+        </button>
+      )}
+      <input ref={ref} type="file" className="hidden" accept="image/*, .heic" id={`item-photo-${tempId}`}
+        onChange={e => { const f = e.target.files?.[0]; if (f) onUpload(f); }} />
+    </div>
+  );
+}
+
+function SubItemAudioField({
+  tempId, audioPath, isUploading, isRecording, onStart, onDelete,
+}: {
+  tempId: string; audioPath: string | null; isUploading: boolean; isRecording: boolean;
+  onStart: () => void; onDelete: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium text-foreground">Voice Note</label>
+      {audioPath ? (
+        <div className="bg-muted border border-border rounded-xl p-2.5 flex items-center justify-between">
+          <span className="text-xs font-semibold text-muted-foreground">Audio attached</span>
+          <button type="button" onClick={onDelete}
+            className="text-xs font-bold text-destructive hover:text-destructive/80 py-1 px-2 rounded-md hover:bg-destructive/10 transition-colors min-tap">
+            Delete
+          </button>
+        </div>
+      ) : isRecording ? (
+        <div className="w-full h-12 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-center gap-2 text-xs font-semibold text-primary">
+          <div className="w-2 h-2 rounded-full bg-destructive animate-pulse"/>
+          Recording…
+        </div>
+      ) : (
+        <button type="button" onClick={onStart}
+          className="w-full h-14 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors min-tap"
+          disabled={isUploading}>
+          {isUploading ? <span>Uploading...</span> : <><svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg><span>Add voice note</span></>}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Sub-item accordion card ──────────────────────────────────────────────────
+
+interface SubItemCardProps {
+  item: SubItemDraft;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onChange: (updated: SubItemDraft) => void;
+  onRemove: () => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
+  isDragging?: boolean;
+  onPhotoUpload: (tempId: string, file: File) => void;
+  onPhotoRemove: (tempId: string) => void;
+  onAudioRecord: (tempId: string) => void;
+  onAudioDelete: (tempId: string) => void;
+  photoUploadingIds: Set<string>;
+  audioUploadingIds: Set<string>;
+  audioRecordingId: string | null;
+}
+
+function SubItemCard({
+  item, index, isExpanded, onToggle, onChange, onRemove,
+  dragHandleProps, isDragging,
+  onPhotoUpload, onPhotoRemove, onAudioRecord, onAudioDelete,
+  photoUploadingIds, audioUploadingIds, audioRecordingId,
+}: SubItemCardProps) {
+  return (
+    <div className={cn(
+      "rounded-2xl border border-border bg-card overflow-hidden transition-shadow",
+      isDragging && "shadow-lg ring-2 ring-primary/20"
+    )}>
+      <div className="flex items-center gap-2 px-3 py-3">
+        {/* Drag handle */}
+        <div {...dragHandleProps}
+          className="min-tap flex items-center justify-center text-muted-foreground cursor-grab active:cursor-grabbing touch-none"
+          aria-label="Drag to reorder">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="9" cy="5" r="1" fill="currentColor"/><circle cx="15" cy="5" r="1" fill="currentColor"/>
+            <circle cx="9" cy="12" r="1" fill="currentColor"/><circle cx="15" cy="12" r="1" fill="currentColor"/>
+            <circle cx="9" cy="19" r="1" fill="currentColor"/><circle cx="15" cy="19" r="1" fill="currentColor"/>
+          </svg>
+        </div>
+
+        {/* Summary — tap to toggle expand */}
+        <button type="button" onClick={onToggle} className="flex-1 text-left min-tap" aria-expanded={isExpanded}>
+          <span className="text-sm font-bold text-foreground">
+            {item.itemLabel || `Item ${index + 2}`}
+          </span>
+          <span className="text-xs text-muted-foreground ml-2">
+            {[
+              item.length && item.width ? `${item.length}×${item.width}cm` : null,
+              item.qty ? `Qty: ${item.qty}` : null,
+              item.dueDate ? `Due: ${new Date(item.dueDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : null,
+            ].filter(Boolean).join(' · ')}
+          </span>
+        </button>
+
+        {/* Status badge */}
+        <Badge status={item.status} className="text-[10px] px-2 py-0.5 shrink-0" />
+
+        {/* Expand chevron */}
+        <button type="button" onClick={onToggle}
+          className="min-tap p-1 text-muted-foreground"
+          aria-label={isExpanded ? 'Collapse item' : 'Expand item'}>
+          <svg className={cn("w-4 h-4 transition-transform duration-200", isExpanded && "rotate-180")}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Expanded content — grid-template-rows for smooth height animation */}
+      <div className="grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.25,1,0.5,1)]"
+        style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}>
+        <div className="overflow-hidden">
+          <div className="px-3 pb-4 pt-1 border-t border-border flex flex-col gap-4">
+
+            <Input label="Item Label" id={`item-label-${item.tempId}`}
+              value={item.itemLabel}
+              onChange={e => onChange({ ...item, itemLabel: e.target.value })}
+              placeholder={`Item ${index + 2}`} />
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Date" type="date" id={`item-date-${item.tempId}`}
+                value={item.date} onChange={e => onChange({ ...item, date: e.target.value })} required />
+              <Input label="Due Date" type="date" id={`item-due-${item.tempId}`}
+                value={item.dueDate} onChange={e => onChange({ ...item, dueDate: e.target.value })} required />
+            </div>
+            {item.status === 'Dispatched' && (
+              <Input label="Dispatch Date" type="date" id={`item-dispatch-${item.tempId}`}
+                value={item.dispatchDate} onChange={e => onChange({ ...item, dispatchDate: e.target.value })} />
+            )}
+
+            <div className="grid grid-cols-3 gap-3">
+              <Input label="Length" type="number" step="0.01" placeholder="cm"
+                id={`item-l-${item.tempId}`} value={item.length}
+                onChange={e => onChange({ ...item, length: e.target.value })} />
+              <Input label="Width" type="number" step="0.01" placeholder="cm"
+                id={`item-w-${item.tempId}`} value={item.width}
+                onChange={e => onChange({ ...item, width: e.target.value })} />
+              <Input label="Qty" type="number" min="1"
+                id={`item-qty-${item.tempId}`} value={item.qty}
+                onChange={e => onChange({ ...item, qty: e.target.value })} required />
+            </div>
+
+            {/* Status segmented control */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Status</label>
+              <div role="radiogroup" aria-label="Item status"
+                className="grid grid-cols-2 gap-2 sm:grid-cols-4 bg-muted p-1 rounded-xl border border-border">
+                {(['Pending', 'In Progress', 'Packing', 'Dispatched'] as OrderStatus[]).map(s => (
+                  <button key={s} type="button" role="radio" aria-checked={item.status === s}
+                    className={`py-2 px-1 text-xs font-semibold rounded-lg transition-colors min-tap ${
+                      item.status === s
+                        ? 'bg-card shadow-sm text-primary border border-border/50'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
+                    }`}
+                    onClick={() => {
+                      const updated = { ...item, status: s };
+                      if (s === 'Dispatched' && !item.dispatchDate) {
+                        updated.dispatchDate = new Date().toISOString().split('T')[0];
+                      }
+                      onChange(updated);
+                    }}>{s}</button>
+                ))}
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={`item-desc-${item.tempId}`} className="text-sm font-medium text-foreground">Description</label>
+              <textarea id={`item-desc-${item.tempId}`} rows={2}
+                className="w-full p-3.5 rounded-xl border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none placeholder:text-muted-foreground"
+                placeholder="Notes for this item..."
+                value={item.description}
+                onChange={e => onChange({ ...item, description: e.target.value })} />
+            </div>
+
+            <SubItemPhotoField
+              tempId={item.tempId}
+              photoPath={item.photoPath}
+              isUploading={photoUploadingIds.has(item.tempId)}
+              onUpload={(file) => onPhotoUpload(item.tempId, file)}
+              onRemove={() => onPhotoRemove(item.tempId)}
+            />
+
+            <SubItemAudioField
+              tempId={item.tempId}
+              audioPath={item.audioPath}
+              isUploading={audioUploadingIds.has(item.tempId)}
+              isRecording={audioRecordingId === item.tempId}
+              onStart={() => onAudioRecord(item.tempId)}
+              onDelete={() => onAudioDelete(item.tempId)}
+            />
+
+            <button type="button" onClick={onRemove}
+              className="self-start text-xs font-bold text-destructive hover:text-destructive/80 py-2 px-3 rounded-xl hover:bg-destructive/10 transition-colors min-tap">
+              Remove this item
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
 interface OrderFormSheetProps {
   order: OrderWithCategoryAndItems | null;
@@ -53,8 +326,16 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
 
   // Sub-item state
   const [subItems, setSubItems] = useState<SubItemDraft[]>([]);
+  const [expandedSubItem, setExpandedSubItem] = useState<string | null>(null);
+  const [subItemPhotoUploadingIds, setSubItemPhotoUploadingIds] = useState<Set<string>>(new Set());
+  const [subItemAudioUploadingIds, setSubItemAudioUploadingIds] = useState<Set<string>>(new Set());
+  const [subItemRecordingId, setSubItemRecordingId] = useState<string | null>(null);
+  // Duplicate detection
+  const [duplicateOrder, setDuplicateOrder] = useState<{ id: string; order_no: string; customer_name: string } | null>(null);
+  const [pendingSubItemData, setPendingSubItemData] = useState<any>(null);
   // Draft restore banner
   const [pendingDraft, setPendingDraft] = useState<OrderFormDraft | null>(null);
+
 
   /** localStorage key for this form's draft */
   const getDraftKey = (orderId: string | null) =>
@@ -395,12 +676,74 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
 
   const deleteAudio = () => { setAudioUrl(null); setAudioPath(null); setRecordingDuration(0); };
 
+  // ── Sub-item media upload handlers ──────────────────────────────────────────
+
+  const handleSubItemPhotoUpload = async (tempId: string, file: File) => {
+    setSubItemPhotoUploadingIds(prev => new Set(prev).add(tempId));
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const filePath = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+      const { error } = await supabase.storage.from('order-photos').upload(filePath, file);
+      if (error) throw error;
+      setSubItems(prev => prev.map(i => i.tempId === tempId ? { ...i, photoPath: filePath } : i));
+    } catch {
+      toast.error("Couldn't upload the photo. Please try again.");
+    } finally {
+      setSubItemPhotoUploadingIds(prev => { const n = new Set(prev); n.delete(tempId); return n; });
+    }
+  };
+
+  const handleSubItemPhotoRemove = (tempId: string) => {
+    setSubItems(prev => prev.map(i => i.tempId === tempId ? { ...i, photoPath: null } : i));
+  };
+
+  const handleSubItemAudioRecord = async (tempId: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        setSubItemAudioUploadingIds(prev => new Set(prev).add(tempId));
+        try {
+          const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.webm`;
+          const { error } = await supabase.storage.from('order-audio').upload(fileName, blob);
+          if (error) throw error;
+          setSubItems(prev => prev.map(i => i.tempId === tempId ? { ...i, audioPath: fileName } : i));
+        } catch { toast.error("Couldn't save the voice note. Please try again."); }
+        finally { setSubItemAudioUploadingIds(prev => { const n = new Set(prev); n.delete(tempId); return n; }); }
+        stream.getTracks().forEach(t => t.stop());
+        setSubItemRecordingId(null);
+      };
+      setSubItemRecordingId(tempId);
+      mediaRecorder.start();
+      setTimeout(() => { if (mediaRecorder.state === 'recording') mediaRecorder.stop(); }, 60000);
+    } catch {
+      toast.error("Microphone access was denied. Please allow microphone access in your browser settings and try again.");
+    }
+  };
+
+  const handleSubItemAudioDelete = (tempId: string) => {
+    setSubItems(prev => prev.map(i => i.tempId === tempId ? { ...i, audioPath: null } : i));
+  };
+
+  // ── Atomic handleSubmit ──────────────────────────────────────────────────────
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const anyUploading = photoUploading || audioUploading ||
+      subItemPhotoUploadingIds.size > 0 || subItemAudioUploadingIds.size > 0;
+    if (anyUploading) {
+      toast.error("A photo or voice note is still uploading. Please wait a moment and try again.");
+      return;
+    }
     setLoading(true);
-    const payload = {
-      order_no: orderNo,
-      customer_name: customerName,
+
+    const orderPayload = {
+      order_no: orderNo.trim(),
+      customer_name: customerName.trim(),
       category_id: categoryId,
       date,
       due_date: dueDate,
@@ -409,24 +752,83 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       width: width ? parseFloat(width) : null,
       qty: parseInt(qty, 10),
       status,
-      description,
+      description: description || null,
       photo_url: photoPath,
       audio_url: audioPath,
     };
+
     try {
+      let savedOrderId = order?.id ?? null;
+
       if (order) {
-        const { error } = await (supabase.from('orders') as any).update(payload).eq('id', order.id);
+        const { error } = await (supabase.from('orders') as any).update(orderPayload).eq('id', order.id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase.from('orders') as any).insert(payload);
+        const { data: newOrder, error } = await (supabase.from('orders') as any)
+          .insert(orderPayload).select('id').single();
+        if (error) throw error;
+        savedOrderId = newOrder.id;
+      }
+
+      const existingDbIds = (order?.order_items ?? []).map(i => i.id);
+      const currentDbIds = subItems.map(i => i.dbId).filter(Boolean);
+      const removedIds = existingDbIds.filter(id => !currentDbIds.includes(id));
+      if (removedIds.length > 0) {
+        const { error } = await (supabase.from('order_items') as any).delete().in('id', removedIds);
         if (error) throw error;
       }
+
+      if (subItems.length > 0) {
+        const itemsPayload = subItems.map((item, idx) => ({
+          ...(item.dbId ? { id: item.dbId } : {}),
+          order_id: savedOrderId,
+          item_label: item.itemLabel || `Item ${idx + 2}`,
+          date: item.date,
+          due_date: item.dueDate,
+          dispatch_date: item.status === 'Dispatched' ? (item.dispatchDate || null) : null,
+          length: item.length ? parseFloat(item.length) : null,
+          width: item.width ? parseFloat(item.width) : null,
+          qty: parseInt(item.qty, 10) || 1,
+          status: item.status,
+          description: item.description || null,
+          photo_url: item.photoPath,
+          audio_url: item.audioPath,
+          sort_order: idx,
+        }));
+        const { error } = await (supabase.from('order_items') as any)
+          .upsert(itemsPayload, { onConflict: 'id' });
+        if (error) throw error;
+      }
+
       clearDraft(order?.id ?? null);
       onClose();
     } catch (err: any) {
       const msg = err?.message || '';
       if (msg.includes('duplicate') || msg.includes('unique')) {
-        toast.error('An order with this Order No already exists. Please use a different Order No.');
+        const { data: existing } = await (supabase.from('orders') as any)
+          .select('id, order_no, customer_name').eq('order_no', orderNo.trim()).single();
+        if (existing && existing.customer_name.trim().toLowerCase() === customerName.trim().toLowerCase()) {
+          setDuplicateOrder(existing);
+          setPendingSubItemData({
+            order_id: existing.id,
+            item_label: `Item added ${new Date().toLocaleDateString('en-IN')}`,
+            date,
+            due_date: dueDate,
+            dispatch_date: status === 'Dispatched' ? (dispatchDate || null) : null,
+            length: length ? parseFloat(length) : null,
+            width: width ? parseFloat(width) : null,
+            qty: parseInt(qty, 10),
+            status,
+            description: description || null,
+            photo_url: photoPath,
+            audio_url: audioPath,
+            sort_order: 999,
+          });
+        } else {
+          toast.error(`Order No ${orderNo} is already used by a different customer. Please use a different Order No.`);
+        }
+      } else if (msg.includes('null value') || msg.includes('not-null')) {
+        toast.error("Please fill in all required fields for every item before saving.");
       } else {
         toast.error("Couldn't save the order. Please check your details and try again.");
       }
@@ -437,6 +839,46 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
 
   return (
     <Drawer isOpen={isOpen} onClose={onClose} title={order ? 'Edit Order' : 'New Order'}>
+      {/* ── Duplicate order dialog ─── */}
+      {duplicateOrder && (
+        <div className="animate-in slide-in-from-bottom-4 fade-in duration-300 absolute inset-x-4 bottom-24 z-10 bg-card border border-border rounded-2xl shadow-xl p-5 flex flex-col gap-4">
+          <div>
+            <p className="text-sm font-bold text-foreground leading-snug">
+              Order #{duplicateOrder.order_no} for {duplicateOrder.customer_name} already exists.
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Would you like to add this as a new item to that order instead?
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              className="flex-1"
+              loading={loading}
+              loadingText="Adding…"
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const { error } = await (supabase.from('order_items') as any).insert(pendingSubItemData);
+                  if (error) throw error;
+                  clearDraft(order?.id ?? null);
+                  setDuplicateOrder(null);
+                  setPendingSubItemData(null);
+                  onClose();
+                } catch {
+                  toast.error("Couldn't add the item. Please try again.");
+                } finally { setLoading(false); }
+              }}
+            >
+              Add as Sub-Item
+            </Button>
+            <Button type="button" variant="ghost" className="flex-1"
+              onClick={() => { setDuplicateOrder(null); setPendingSubItemData(null); }}>
+              Change Order No
+            </Button>
+          </div>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 pt-2 pb-6">
 
         <div className="grid grid-cols-2 gap-4">
@@ -550,7 +992,96 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
           />
         </div>
 
-        {/* Photo upload — M1: tokens */}
+        {/* ── Draft restore banner ─────────────────────────────── */}
+        {pendingDraft && (
+          <div className="animate-in slide-in-from-top-2 fade-in duration-200 bg-primary/10 border border-primary/20 rounded-2xl p-4 flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-bold text-foreground">Unsaved draft found</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                From {new Date(pendingDraft.savedAt).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" onClick={restoreDraft} className="flex-1">Restore draft</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={discardDraft} className="flex-1">Discard</Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Sub-items list ────────────────────────────────────── */}
+        {(() => {
+          const { handleDragStart, handleDragOver, handleDragEnd, handleTouchStart, handleTouchEnd } =
+            useDragSort(subItems, setSubItems);
+          return (
+            <>
+              {subItems.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-foreground tracking-tight">
+                      Additional Items
+                      <span className="ml-2 text-xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{subItems.length}</span>
+                    </span>
+                  </div>
+                  {subItems.map((item, idx) => (
+                    <div
+                      key={item.tempId}
+                      draggable
+                      onDragStart={handleDragStart(idx)}
+                      onDragOver={handleDragOver(idx)}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SubItemCard
+                        item={item}
+                        index={idx}
+                        isExpanded={expandedSubItem === item.tempId}
+                        onToggle={() => setExpandedSubItem(prev => prev === item.tempId ? null : item.tempId)}
+                        onChange={(updated) => setSubItems(prev => prev.map(i => i.tempId === updated.tempId ? updated : i))}
+                        onRemove={() => setSubItems(prev => prev.filter(i => i.tempId !== item.tempId))}
+                        dragHandleProps={{ onTouchStart: handleTouchStart(idx), onTouchEnd: handleTouchEnd }}
+                        onPhotoUpload={handleSubItemPhotoUpload}
+                        onPhotoRemove={handleSubItemPhotoRemove}
+                        onAudioRecord={handleSubItemAudioRecord}
+                        onAudioDelete={handleSubItemAudioDelete}
+                        photoUploadingIds={subItemPhotoUploadingIds}
+                        audioUploadingIds={subItemAudioUploadingIds}
+                        audioRecordingId={subItemRecordingId}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Add Item button ─────────────────────────────── */}
+              <button
+                type="button"
+                onClick={() => {
+                  const today = date || new Date().toISOString().split('T')[0];
+                  const due = dueDate || new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+                  const newItem: SubItemDraft = {
+                    tempId: crypto.randomUUID(),
+                    dbId: null,
+                    itemLabel: `Item ${subItems.length + 2}`,
+                    date: today,
+                    dueDate: due,
+                    dispatchDate: '',
+                    length: '', width: '', qty: '1',
+                    status: 'Pending',
+                    description: '',
+                    photoPath: null, audioPath: null,
+                  };
+                  setSubItems(prev => [...prev, newItem]);
+                  setExpandedSubItem(newItem.tempId);
+                }}
+                className="w-full h-14 border-2 border-dashed border-border rounded-2xl flex items-center justify-center gap-2 text-sm font-semibold text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors min-tap"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Item
+              </button>
+            </>
+          );
+        })()}
+
+
         <div className="flex flex-col gap-1.5">
           <label className="text-sm font-medium text-foreground">Reference Photo</label>
           {photoUrl ? (
