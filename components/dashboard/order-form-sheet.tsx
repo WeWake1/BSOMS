@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
-import type { OrderWithCategoryAndItems, Category, OrderStatus } from '@/types/database';
+import type { OrderWithCategoryAndItems, Category, OrderStatus, SubItemDraft, OrderFormDraft } from '@/types/database';
 import toast from 'react-hot-toast';
 
 interface OrderFormSheetProps {
@@ -51,9 +51,71 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
   const [status, setStatus] = useState<OrderStatus>('Pending');
   const [description, setDescription] = useState('');
 
-  // M10: stable supabase is in useState, no need to list in deps for these effects
+  // Sub-item state
+  const [subItems, setSubItems] = useState<SubItemDraft[]>([]);
+  // Draft restore banner
+  const [pendingDraft, setPendingDraft] = useState<OrderFormDraft | null>(null);
+
+  /** localStorage key for this form's draft */
+  const getDraftKey = (orderId: string | null) =>
+    orderId ? `orderflow_draft_${orderId}` : 'orderflow_draft_new';
+
+  /** Persist current form state to localStorage */
+  const saveDraft = (
+    orderId: string | null,
+    fields: {
+      orderNo: string; customerName: string; categoryId: string;
+      date: string; dueDate: string; dispatchDate: string;
+      length: string; width: string; qty: string;
+      status: OrderStatus; description: string;
+      photoPath: string | null; audioPath: string | null;
+      subItems: SubItemDraft[];
+    }
+  ) => {
+    try {
+      const draft: OrderFormDraft = {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        orderId,
+        ...fields,
+      };
+      localStorage.setItem(getDraftKey(orderId), JSON.stringify(draft));
+    } catch {
+      // localStorage write failure is non-fatal — silently ignore
+    }
+  };
+
+  /** Load draft from localStorage. Returns null if none or version mismatch */
+  const loadDraft = (orderId: string | null): OrderFormDraft | null => {
+    try {
+      const raw = localStorage.getItem(getDraftKey(orderId));
+      if (!raw) return null;
+      const draft = JSON.parse(raw) as OrderFormDraft;
+      if (draft.version !== 1) return null;
+      return draft;
+    } catch {
+      return null;
+    }
+  };
+
+  /** Clear draft from localStorage after successful save */
+  const clearDraft = (orderId: string | null) => {
+    try {
+      localStorage.removeItem(getDraftKey(orderId));
+    } catch { /* non-fatal */ }
+  };
+
   useEffect(() => {
     if (isOpen) {
+      // Check for existing draft on open
+      const draft = loadDraft(order?.id ?? null);
+      if (draft) {
+        setPendingDraft(draft);
+        // Don't populate form yet — wait for user to accept or discard
+        return;
+      }
+      setPendingDraft(null);
+
       if (order) {
         setOrderNo(order.order_no);
         setCustomerName(order.customer_name);
@@ -84,6 +146,27 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         } else {
           setPhotoUrl(null);
         }
+
+        // Populate sub-items from existing order_items
+        if (order.order_items && order.order_items.length > 0) {
+          setSubItems(order.order_items.map((item, idx) => ({
+            tempId: item.id, // use DB id as tempId for existing items
+            dbId: item.id,
+            itemLabel: item.item_label ?? `Item ${idx + 2}`,
+            date: item.date,
+            dueDate: item.due_date,
+            dispatchDate: item.dispatch_date ?? '',
+            length: item.length?.toString() ?? '',
+            width: item.width?.toString() ?? '',
+            qty: item.qty.toString(),
+            status: item.status,
+            description: item.description ?? '',
+            photoPath: item.photo_url,
+            audioPath: item.audio_url,
+          })));
+        } else {
+          setSubItems([]);
+        }
       } else {
         const today = new Date();
         const nextWeek = new Date(today);
@@ -106,10 +189,114 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setAudioUrl(null);
         setIsRecording(false);
         setRecordingDuration(0);
+        setSubItems([]);
         if (timerRef.current) clearInterval(timerRef.current);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, order, categories, supabase]);
+
+  // Auto-save draft every 3 seconds while form is open
+  useEffect(() => {
+    if (!isOpen || pendingDraft !== null) return; // don't save while draft prompt is showing
+    const interval = setInterval(() => {
+      saveDraft(order?.id ?? null, {
+        orderNo, customerName, categoryId,
+        date, dueDate, dispatchDate,
+        length, width, qty, status, description,
+        photoPath: photoPath,
+        audioPath: audioPath,
+        subItems,
+      });
+    }, 3000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isOpen, pendingDraft, order?.id,
+    orderNo, customerName, categoryId,
+    date, dueDate, dispatchDate,
+    length, width, qty, status, description,
+    photoPath, audioPath, subItems,
+  ]);
+
+  const restoreDraft = () => {
+    if (!pendingDraft) return;
+    setOrderNo(pendingDraft.orderNo);
+    setCustomerName(pendingDraft.customerName);
+    setCategoryId(pendingDraft.categoryId);
+    setDate(pendingDraft.date);
+    setDueDate(pendingDraft.dueDate);
+    setDispatchDate(pendingDraft.dispatchDate);
+    setLength(pendingDraft.length);
+    setWidth(pendingDraft.width);
+    setQty(pendingDraft.qty);
+    setStatus(pendingDraft.status);
+    setDescription(pendingDraft.description);
+    setPhotoPath(pendingDraft.photoPath);
+    setAudioPath(pendingDraft.audioPath);
+    setSubItems(pendingDraft.subItems);
+    setPendingDraft(null);
+  };
+
+  const discardDraft = () => {
+    clearDraft(order?.id ?? null);
+    setPendingDraft(null);
+    // Re-populate form from order/defaults
+    if (order) {
+      setOrderNo(order.order_no);
+      setCustomerName(order.customer_name);
+      setCategoryId(order.category_id);
+      setDate(order.date);
+      setDueDate(order.due_date);
+      setDispatchDate(order.dispatch_date || '');
+      setLength(order.length?.toString() || '');
+      setWidth(order.width?.toString() || '');
+      setQty(order.qty.toString());
+      setStatus(order.status);
+      setDescription(order.description || '');
+      setPhotoPath(order.photo_url || null);
+      setAudioPath(order.audio_url || null);
+      if (order.order_items && order.order_items.length > 0) {
+        setSubItems(order.order_items.map((item, idx) => ({
+          tempId: item.id,
+          dbId: item.id,
+          itemLabel: item.item_label ?? `Item ${idx + 2}`,
+          date: item.date,
+          dueDate: item.due_date,
+          dispatchDate: item.dispatch_date ?? '',
+          length: item.length?.toString() ?? '',
+          width: item.width?.toString() ?? '',
+          qty: item.qty.toString(),
+          status: item.status,
+          description: item.description ?? '',
+          photoPath: item.photo_url,
+          audioPath: item.audio_url,
+        })));
+      } else {
+        setSubItems([]);
+      }
+    } else {
+      const today = new Date();
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+      setOrderNo('');
+      setCustomerName('');
+      setCategoryId(categories[0]?.id || '');
+      setDate(today.toISOString().split('T')[0]);
+      setDueDate(nextWeek.toISOString().split('T')[0]);
+      setDispatchDate('');
+      setLength('');
+      setWidth('');
+      setQty('1');
+      setStatus('Pending');
+      setDescription('');
+      setPhotoPath(null);
+      setPhotoUrl(null);
+      setAudioPath(null);
+      setAudioUrl(null);
+      setSubItems([]);
+    }
+  };
 
   const activeCategories = Array.from(
     new Map([...categories, ...localCategories].map(c => [c.id, c])).values()
@@ -234,6 +421,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         const { error } = await (supabase.from('orders') as any).insert(payload);
         if (error) throw error;
       }
+      clearDraft(order?.id ?? null);
       onClose();
     } catch (err: any) {
       const msg = err?.message || '';
