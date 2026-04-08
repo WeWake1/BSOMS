@@ -132,6 +132,7 @@ interface SubItemCardProps {
   photoUploadingIds: Set<string>;
   audioUploadingIds: Set<string>;
   audioRecordingId: string | null;
+  categories: Category[];
 }
 
 function SubItemCard({
@@ -139,7 +140,9 @@ function SubItemCard({
   dragHandleProps, isDragging,
   onPhotoUpload, onPhotoRemove, onAudioRecord, onAudioDelete,
   photoUploadingIds, audioUploadingIds, audioRecordingId,
+  categories,
 }: SubItemCardProps) {
+  const catName = categories.find(c => c.id === item.categoryId)?.name || 'Select Category';
   return (
     <div className={cn(
       "rounded-2xl border border-border bg-card overflow-hidden transition-shadow",
@@ -160,7 +163,8 @@ function SubItemCard({
         {/* Summary — tap to toggle expand */}
         <button type="button" onClick={onToggle} className="flex-1 text-left min-tap" aria-expanded={isExpanded}>
           <span className="text-sm font-bold text-foreground">
-            {item.itemLabel || `Item ${index + 2}`}
+            <span className="text-muted-foreground font-semibold">{index + 1}.{' '}</span>
+            {catName}
           </span>
           <span className="text-xs text-muted-foreground ml-2">
             {[
@@ -191,10 +195,26 @@ function SubItemCard({
         <div className="overflow-hidden">
           <div className="px-3 pb-4 pt-1 border-t border-border flex flex-col gap-4">
 
-            <Input label="Item Label" id={`item-label-${item.tempId}`}
-              value={item.itemLabel}
-              onChange={e => onChange({ ...item, itemLabel: e.target.value })}
-              placeholder={`Item ${index + 2}`} />
+            {/* Category dropdown — this IS the item identifier */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Category</label>
+              <Select
+                selectedKey={item.categoryId}
+                onSelectionChange={(k) => onChange({ ...item, categoryId: k as string })}
+                aria-label="Item category"
+              >
+                <SelectTrigger id={`item-cat-${item.tempId}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectPopover>
+                  <SelectListBox>
+                    {categories.map(c => (
+                      <SelectItem key={c.id} id={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectListBox>
+                </SelectPopover>
+              </Select>
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <Input label="Date" type="date" id={`item-date-${item.tempId}`}
@@ -252,22 +272,24 @@ function SubItemCard({
                 onChange={e => onChange({ ...item, description: e.target.value })} />
             </div>
 
-            <SubItemPhotoField
-              tempId={item.tempId}
-              photoPath={item.photoPath}
-              isUploading={photoUploadingIds.has(item.tempId)}
-              onUpload={(file) => onPhotoUpload(item.tempId, file)}
-              onRemove={() => onPhotoRemove(item.tempId)}
-            />
-
-            <SubItemAudioField
-              tempId={item.tempId}
-              audioPath={item.audioPath}
-              isUploading={audioUploadingIds.has(item.tempId)}
-              isRecording={audioRecordingId === item.tempId}
-              onStart={() => onAudioRecord(item.tempId)}
-              onDelete={() => onAudioDelete(item.tempId)}
-            />
+            {/* Photo + Voice Note side-by-side */}
+            <div className="grid grid-cols-2 gap-3">
+              <SubItemPhotoField
+                tempId={item.tempId}
+                photoPath={item.photoPath}
+                isUploading={photoUploadingIds.has(item.tempId)}
+                onUpload={(file) => onPhotoUpload(item.tempId, file)}
+                onRemove={() => onPhotoRemove(item.tempId)}
+              />
+              <SubItemAudioField
+                tempId={item.tempId}
+                audioPath={item.audioPath}
+                isUploading={audioUploadingIds.has(item.tempId)}
+                isRecording={audioRecordingId === item.tempId}
+                onStart={() => onAudioRecord(item.tempId)}
+                onDelete={() => onAudioDelete(item.tempId)}
+              />
+            </div>
 
             <button type="button" onClick={onRemove}
               className="self-start text-xs font-bold text-destructive hover:text-destructive/80 py-2 px-3 rounded-xl hover:bg-destructive/10 transition-colors min-tap">
@@ -430,10 +452,10 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
 
         // Populate sub-items from existing order_items
         if (order.order_items && order.order_items.length > 0) {
-          setSubItems(order.order_items.map((item, idx) => ({
-            tempId: item.id, // use DB id as tempId for existing items
+          setSubItems(order.order_items.map((item) => ({
+            tempId: item.id,
             dbId: item.id,
-            itemLabel: item.item_label ?? `Item ${idx + 2}`,
+            categoryId: (item as any).category_id ?? order.category_id,
             date: item.date,
             dueDate: item.due_date,
             dispatchDate: item.dispatch_date ?? '',
@@ -538,10 +560,10 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       setPhotoPath(order.photo_url || null);
       setAudioPath(order.audio_url || null);
       if (order.order_items && order.order_items.length > 0) {
-        setSubItems(order.order_items.map((item, idx) => ({
+        setSubItems(order.order_items.map((item) => ({
           tempId: item.id,
           dbId: item.id,
-          itemLabel: item.item_label ?? `Item ${idx + 2}`,
+          categoryId: (item as any).category_id ?? order.category_id,
           date: item.date,
           dueDate: item.due_date,
           dispatchDate: item.dispatch_date ?? '',
@@ -782,7 +804,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         const itemsPayload = subItems.map((item, idx) => ({
           ...(item.dbId ? { id: item.dbId } : {}),
           order_id: savedOrderId,
-          item_label: item.itemLabel || `Item ${idx + 2}`,
+          category_id: item.categoryId,
+          item_label: categories.find(c => c.id === item.categoryId)?.name || 'Item',
           date: item.date,
           due_date: item.dueDate,
           dispatch_date: item.status === 'Dispatched' ? (item.dispatchDate || null) : null,
@@ -827,10 +850,10 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         } else {
           toast.error(`Order No ${orderNo} is already used by a different customer. Please use a different Order No.`);
         }
-      } else if (msg.includes('null value') || msg.includes('not-null')) {
+      } else if (msg.includes('null value') || msg.includes('not-null') || msg.includes('violates')) {
         toast.error("Please fill in all required fields for every item before saving.");
       } else {
-        toast.error("Couldn't save the order. Please check your details and try again.");
+        toast.error(`Couldn't save the order: ${msg || 'Unknown error. Please try again.'}`);
       }
     } finally {
       setLoading(false);
@@ -992,7 +1015,94 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
           />
         </div>
 
+        {/* ── Reference Photo (main order) ──────────────────────── */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-foreground">Reference Photo</label>
+          {photoUrl ? (
+            <div className="relative w-full h-40 bg-muted rounded-xl overflow-hidden border border-border group">
+              <img src={photoUrl} alt="Order reference" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => { setPhotoUrl(null); setPhotoPath(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                className="absolute top-2 right-2 bg-foreground/60 text-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-tap"
+                aria-label="Remove photo"
+              >
+                <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full h-24 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors min-tap"
+              disabled={photoUploading}
+            >
+              {photoUploading ? (
+                <div role="status" aria-label="Uploading photo">
+                  <svg className="animate-spin w-5 h-5 mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  <span className="text-sm font-medium">Uploading...</span>
+                </div>
+              ) : (
+                <>
+                  <svg className="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span className="text-sm font-medium">Capture or upload photo</span>
+                </>
+              )}
+            </button>
+          )}
+          <input type="file" ref={fileInputRef} className="hidden" accept="image/*, .heic" onChange={handlePhotoUpload} />
+        </div>
+
+        {/* ── Voice Note (main order) ────────────────────────────── */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-foreground">Voice Note</label>
+          {audioUrl ? (
+            <div className="bg-muted border border-border rounded-xl p-3 flex flex-col gap-3">
+              <audio controls src={audioUrl} className="w-full h-10 outline-none" aria-label="Recorded voice note" />
+              <div className="flex justify-between items-center px-1">
+                <span className="text-xs font-semibold text-muted-foreground">Audio ready</span>
+                <button type="button" onClick={deleteAudio} className="text-xs font-bold text-destructive hover:text-destructive/80 py-1 px-2 rounded-md hover:bg-destructive/10 transition-colors min-tap">Delete</button>
+              </div>
+            </div>
+          ) : isRecording ? (
+            <div className="w-full h-24 border-2 border-primary bg-primary/5 rounded-xl flex flex-col items-center justify-center relative shadow-inner">
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-destructive"></span>
+                </div>
+                <span className="font-mono text-foreground font-bold tracking-wider">
+                  {Math.floor(recordingDuration / 60).toString().padStart(2, '0')}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
+              <button type="button" onClick={stopRecording} className="mt-3 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold uppercase tracking-wider py-1.5 px-4 rounded-full shadow-sm min-tap">
+                Stop Recording
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={startRecording}
+              className="w-full h-24 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors min-tap"
+              disabled={audioUploading || photoUploading}
+            >
+              {audioUploading ? (
+                <div role="status" aria-label="Uploading audio">
+                  <svg className="animate-spin w-5 h-5 mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  <span className="text-sm font-medium">Uploading Audio...</span>
+                </div>
+              ) : (
+                <>
+                  <svg className="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                  <span className="text-sm font-medium">Record Voice Note</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+
         {/* ── Draft restore banner ─────────────────────────────── */}
+
         {pendingDraft && (
           <div className="animate-in slide-in-from-top-2 fade-in duration-200 bg-primary/10 border border-primary/20 rounded-2xl p-4 flex flex-col gap-3">
             <div>
@@ -1045,6 +1155,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
                         photoUploadingIds={subItemPhotoUploadingIds}
                         audioUploadingIds={subItemAudioUploadingIds}
                         audioRecordingId={subItemRecordingId}
+                        categories={localCategories.length > 0 ? localCategories : categories}
                       />
                     </div>
                   ))}
@@ -1060,7 +1171,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
                   const newItem: SubItemDraft = {
                     tempId: crypto.randomUUID(),
                     dbId: null,
-                    itemLabel: `Item ${subItems.length + 2}`,
+                    categoryId: categoryId || (localCategories[0] ?? categories[0])?.id || '',
                     date: today,
                     dueDate: due,
                     dispatchDate: '',
@@ -1081,98 +1192,6 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
           );
         })()}
 
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-foreground">Reference Photo</label>
-          {photoUrl ? (
-            <div className="relative w-full h-40 bg-muted rounded-xl overflow-hidden border border-border group">
-              <img src={photoUrl} alt="Order reference" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={() => { setPhotoUrl(null); setPhotoPath(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                className="absolute top-2 right-2 bg-foreground/60 text-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-tap"
-                aria-label="Remove photo"
-              >
-                <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full h-24 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors min-tap"
-              disabled={photoUploading}
-            >
-              {/* H1: role=status + aria-label on spinner */}
-              {photoUploading ? (
-                <div role="status" aria-label="Uploading photo">
-                  <svg className="animate-spin w-5 h-5 mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  <span className="text-sm font-medium">Uploading...</span>
-                </div>
-              ) : (
-                <>
-                  <svg className="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  <span className="text-sm font-medium">Capture or upload photo</span>
-                </>
-              )}
-            </button>
-          )}
-          <input type="file" ref={fileInputRef} className="hidden" accept="image/*, .heic" onChange={handlePhotoUpload} />
-        </div>
-
-        {/* Voice Note — H5: aria-label on audio */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-foreground">Voice Note</label>
-          {audioUrl ? (
-            <div className="bg-muted border border-border rounded-xl p-3 flex flex-col gap-3">
-              <audio
-                controls
-                src={audioUrl}
-                className="w-full h-10 outline-none"
-                aria-label="Recorded voice note"
-              />
-              <div className="flex justify-between items-center px-1">
-                <span className="text-xs font-semibold text-muted-foreground">Audio ready</span>
-                <button type="button" onClick={deleteAudio} className="text-xs font-bold text-destructive hover:text-destructive/80 py-1 px-2 rounded-md hover:bg-destructive/10 transition-colors min-tap">Delete</button>
-              </div>
-            </div>
-          ) : isRecording ? (
-            <div className="w-full h-24 border-2 border-primary bg-primary/5 rounded-xl flex flex-col items-center justify-center relative shadow-inner">
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-destructive"></span>
-                </div>
-                <span className="font-mono text-foreground font-bold tracking-wider">
-                  {Math.floor(recordingDuration / 60).toString().padStart(2, '0')}:{(recordingDuration % 60).toString().padStart(2, '0')}
-                </span>
-              </div>
-              <button type="button" onClick={stopRecording} className="mt-3 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold uppercase tracking-wider py-1.5 px-4 rounded-full shadow-sm min-tap">
-                Stop Recording
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={startRecording}
-              className="w-full h-24 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 hover:bg-primary/5 transition-colors min-tap"
-              disabled={audioUploading || photoUploading}
-            >
-              {/* H1: role=status on spinner */}
-              {audioUploading ? (
-                <div role="status" aria-label="Uploading audio">
-                  <svg className="animate-spin w-5 h-5 mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  <span className="text-sm font-medium">Uploading Audio...</span>
-                </div>
-              ) : (
-                <>
-                  <svg className="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-                  <span className="text-sm font-medium">Record Voice Note</span>
-                </>
-              )}
-            </button>
-          )}
-        </div>
 
         <div className="mt-4 pt-4 border-t border-border flex gap-3 pb-8">
           <Button type="button" variant="ghost" onClick={onClose} className="flex-1">Cancel</Button>

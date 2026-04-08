@@ -107,7 +107,7 @@ export interface SubItemDraft {
   tempId: string;
   /** null for new items not yet saved; existing order_items.id for saved items */
   dbId: string | null;
-  itemLabel: string;
+  categoryId: string;     // FK to categories.id — shown as the card title
   date: string;           // ISO date string YYYY-MM-DD
   dueDate: string;
   dispatchDate: string;   // '' if not set

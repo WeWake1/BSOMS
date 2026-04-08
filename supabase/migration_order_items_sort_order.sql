@@ -7,6 +7,7 @@
 CREATE TABLE IF NOT EXISTS order_items (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id       uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  category_id    uuid REFERENCES categories(id) ON DELETE SET NULL,
   item_label     text NOT NULL DEFAULT 'Item',
   date           date NOT NULL,
   due_date       date NOT NULL,
