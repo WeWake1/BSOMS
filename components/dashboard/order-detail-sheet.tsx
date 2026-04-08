@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Drawer } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getComputedStatus, getStatusDotClass } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import type { OrderWithCategoryAndItems } from '@/types/database';
 import toast from 'react-hot-toast';
@@ -114,7 +114,10 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
               <h3 className="text-xl font-bold text-foreground leading-tight mb-1">{order.customer_name}</h3>
               <p className="text-sm font-medium text-muted-foreground">{order.categories?.name || 'Uncategorized'}</p>
             </div>
-            <Badge status={order.status} className="mt-1 shadow-sm text-sm px-3 py-1.5" />
+            {(() => {
+              const computed = getComputedStatus(order);
+              return <Badge status={computed} className="mt-1 shadow-sm text-sm px-3 py-1.5" />;
+            })()}
           </div>
 
           {signedUrl && (
@@ -151,6 +154,44 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
                 className="w-full h-11 focus:outline-none"
                 aria-label="Voice note for this order"
               />
+            </div>
+          )}
+
+          {/* Sub-item status breakdown */}
+          {order.order_items && order.order_items.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-bold tracking-widest text-muted-foreground uppercase ml-1">Items ({order.order_items.length + 1} total)</span>
+              {/* Parent row */}
+              <div className="bg-muted rounded-xl border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${getStatusDotClass(order.status)}`} />
+                  <span className="text-sm font-semibold text-foreground truncate">
+                    {order.order_no} <span className="font-normal text-muted-foreground">(main)</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs text-muted-foreground">{formatDate(order.due_date)}</span>
+                  <Badge status={order.status} className="text-[10px] px-2 py-0.5" />
+                </div>
+              </div>
+              {/* Sub-item rows sorted by sort_order */}
+              {[...order.order_items]
+                .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                .map((item, idx) => (
+                  <div key={item.id} className="bg-muted rounded-xl border border-border px-3 py-2.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${getStatusDotClass(item.status)}`} />
+                      <span className="text-sm font-semibold text-foreground truncate">
+                        {item.item_label || `Item ${idx + 2}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground">{formatDate(item.due_date)}</span>
+                      <Badge status={item.status} className="text-[10px] px-2 py-0.5" />
+                    </div>
+                  </div>
+                ))
+              }
             </div>
           )}
 

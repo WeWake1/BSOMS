@@ -13,7 +13,7 @@ import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
 import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
 import { generateOrderReportPDF } from '@/lib/pdf-export';
 import { createClient } from '@/lib/supabase/client';
-import { formatDate } from '@/lib/utils';
+import { formatDate, getItemLevelCounts } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
@@ -111,14 +111,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     );
   };
 
-  const counts = useMemo(() => {
-    return {
-      'Pending': orders.filter(o => o.status === 'Pending').length,
-      'In Progress': orders.filter(o => o.status === 'In Progress').length,
-      'Packing': orders.filter(o => o.status === 'Packing').length,
-      'Dispatched': orders.filter(o => o.status === 'Dispatched').length,
-    };
-  }, [orders]);
+  const counts = useMemo(() => getItemLevelCounts(orders), [orders]);
+
 
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
