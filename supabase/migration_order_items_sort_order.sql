@@ -1,9 +1,9 @@
 -- ============================================================
--- Phase 08: Create order_items table for sub-order support
--- Run this in Supabase SQL Editor
+-- Phase 08: order_items table — idempotent migration
+-- Safe to run multiple times. Run in Supabase SQL Editor.
 -- ============================================================
 
--- 1. Create the table
+-- 1. Create table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS order_items (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id       uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -25,7 +25,12 @@ CREATE TABLE IF NOT EXISTS order_items (
   updated_at     timestamptz NOT NULL DEFAULT now()
 );
 
--- 2. Auto-update updated_at on change
+-- 2. Add missing columns to existing table (safe if already present)
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES categories(id) ON DELETE SET NULL;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS sort_order integer NOT NULL DEFAULT 0;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS audio_url text;
+
+-- 3. Auto-update updated_at on change
 CREATE OR REPLACE FUNCTION update_order_items_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -39,16 +44,20 @@ CREATE TRIGGER set_order_items_updated_at
   BEFORE UPDATE ON order_items
   FOR EACH ROW EXECUTE FUNCTION update_order_items_updated_at();
 
--- 3. Row Level Security
+-- 4. Row Level Security (enable is idempotent)
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 
--- Viewers: read only
+-- 5. Policies — drop first so re-running is safe
+DROP POLICY IF EXISTS "Viewers can read order_items" ON order_items;
+DROP POLICY IF EXISTS "Admins can insert order_items" ON order_items;
+DROP POLICY IF EXISTS "Admins can update order_items" ON order_items;
+DROP POLICY IF EXISTS "Admins can delete order_items" ON order_items;
+
 CREATE POLICY "Viewers can read order_items"
   ON order_items FOR SELECT
   TO authenticated
   USING (true);
 
--- Admins: full CRUD (relies on profiles.role = 'admin')
 CREATE POLICY "Admins can insert order_items"
   ON order_items FOR INSERT
   TO authenticated
@@ -70,6 +79,5 @@ CREATE POLICY "Admins can delete order_items"
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
--- 4. Enable Realtime for order_items (run in Supabase Dashboard → Database → Replication)
--- Or run:
--- ALTER PUBLICATION supabase_realtime ADD TABLE order_items;
+-- 6. Enable Realtime
+ALTER PUBLICATION supabase_realtime ADD TABLE order_items;
