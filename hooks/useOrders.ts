@@ -69,12 +69,26 @@ export function useOrders() {
         if (catsError) throw catsError;
         if (mounted) setCategories(cats || []);
 
-        const { data: ords, error: ordsError } = await supabase
+        // Try to fetch with sub-items; fall back gracefully if order_items table doesn't exist yet
+        let ords: any[] | null = null;
+        const { data: ordsWithItems, error: ordsError } = await supabase
           .from('orders')
           .select('*, categories(*), order_items(*)')
           .order('created_at', { ascending: false });
 
-        if (ordsError) throw ordsError;
+        if (ordsError) {
+          // order_items table likely missing — fall back to orders without sub-items
+          console.warn('order_items unavailable, loading orders without sub-items:', ordsError.message);
+          const { data: ordsBasic, error: basicError } = await supabase
+            .from('orders')
+            .select('*, categories(*)')
+            .order('created_at', { ascending: false });
+          if (basicError) throw basicError;
+          ords = (ordsBasic || []).map((o: any) => ({ ...o, order_items: [] }));
+        } else {
+          ords = ordsWithItems || [];
+        }
+
         if (mounted) setOrders((ords as unknown as OrderWithCategoryAndItems[]) || []);
       } catch (err: any) {
         console.error('Error fetching data:', err);
