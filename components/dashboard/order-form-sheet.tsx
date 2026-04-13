@@ -309,9 +309,10 @@ interface OrderFormSheetProps {
   categories: Category[];
   isOpen: boolean;
   onClose: () => void;
+  onSaved?: (orderId: string) => void;
 }
 
-export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderFormSheetProps) {
+export function OrderFormSheet({ order, categories, isOpen, onClose, onSaved }: OrderFormSheetProps) {
   // M10: stable supabase client via useState to avoid useEffect dependency issues
   const [supabase] = useState(() => createClient());
 
@@ -824,6 +825,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       }
 
       clearDraft(order?.id ?? null);
+      // Notify parent to re-fetch sub-items for this order immediately
+      if (savedOrderId) onSaved?.(savedOrderId);
       onClose();
     } catch (err: any) {
       const msg = err?.message || '';

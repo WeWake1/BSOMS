@@ -19,7 +19,7 @@ import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
 
 export function DashboardClient({ user }: { user: AuthUser }) {
-  const { orders, categories, loading, error, flashIds, newIds, isConnected } = useOrders();
+  const { orders, categories, loading, error, flashIds, newIds, isConnected, refreshOrderItems } = useOrders();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -348,6 +348,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         categories={categories}
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); setSelectedOrderId(null); }}
+        onSaved={refreshOrderItems}
       />
 
       <SettingsDrawer

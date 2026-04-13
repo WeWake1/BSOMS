@@ -115,9 +115,12 @@ export function useOrders() {
               .single()
               .then(({ data: cat }) => {
                 newOrder.categories = cat;
-                newOrder.order_items = []; // New orders start with no sub-items
+                newOrder.order_items = [];
                 setOrders((prev) => [newOrder as OrderWithCategoryAndItems, ...prev]);
                 addNew(newOrder.id);
+                // Fetch actual sub-items shortly after — handles race where order_items
+                // Realtime fires before this INSERT handler adds the order to state.
+                setTimeout(() => refreshOrderItems(newOrder.id), 600);
               });
           } else if (payload.eventType === 'UPDATE') {
             const updatedOrder = payload.new as any;
@@ -193,5 +196,5 @@ export function useOrders() {
     };
   }, [supabase]);
 
-  return { orders, categories, loading, error, flashIds, newIds, isConnected };
+  return { orders, categories, loading, error, flashIds, newIds, isConnected, refreshOrderItems };
 }
