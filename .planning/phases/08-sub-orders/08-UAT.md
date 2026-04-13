@@ -7,7 +7,7 @@ source:
   - .planning/phases/08-sub-orders/03-SUMMARY.md
   - .planning/phases/08-sub-orders/04-SUMMARY.md
 started: 2026-04-08T09:47:00Z
-updated: 2026-04-08T09:47:00Z
+updated: 2026-04-09T05:04:00Z
 ---
 
 ## Current Test
@@ -26,7 +26,7 @@ awaiting: user response
 ## Tests
 
 ### 1. Add a Sub-Item to an Order
-expected: Open the Add/Edit Order form. Below the Description field there is a dashed-border "+ Add Item" button. Tapping it adds a new collapsible item card, auto-expanded, with Label, Date, Due Date, Dimensions, Qty, Status, Description, Photo and Voice Note fields. A counter badge "Additional Items (1)" appears above the list.
+expected: Open the Add/Edit Order form. The main order fields (Order No, Customer, Category, Dates, Dimensions, Qty, Status, Description, Reference Photo, Voice Note) are all grouped together first. Below them is a dashed-border "+ Add Item" button. Tapping it adds a new collapsible item card auto-expanded with a Category dropdown (not a text label), plus Date, Due Date, Dimensions, Qty, Status, Description, and side-by-side Photo + Voice Note buttons. A counter badge "Additional Items (1)" appears above the item list.
 result: pending
 
 ### 2. Sub-Item Accordion Expand / Collapse
