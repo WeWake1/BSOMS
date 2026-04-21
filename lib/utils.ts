@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
+import type { OrderStatus } from '@/types/database';
 
 
 export function cn(...inputs: ClassValue[]) {
@@ -22,7 +22,6 @@ export function getStatusColor(status: OrderStatus | string): string {
     'In Progress': 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 border-blue-200 dark:border-blue-800',
     'Packing': 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400 border-purple-200 dark:border-purple-800',
     'Dispatched': 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 border-green-200 dark:border-green-800',
-    'Mixed': 'bg-slate-100 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700',
   };
   return colors[status] ?? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
 }
@@ -62,60 +61,3 @@ export function getStatusCardColor(status: OrderStatus | string): {
   };
   return map[status] ?? { bg: 'bg-gray-50 dark:bg-gray-800', text: 'text-gray-900 dark:text-gray-200', border: 'border-gray-200 dark:border-gray-700', icon: 'text-gray-500 dark:text-gray-400' };
 }
-
-/** Dot colour class for status used in mixed-status mini-dot display on order cards */
-export function getStatusDotClass(status: OrderStatus | string): string {
-  const map: Record<string, string> = {
-    'Pending':     'bg-amber-500',
-    'In Progress': 'bg-blue-500',
-    'Packing':     'bg-purple-500',
-    'Dispatched':  'bg-green-500',
-  };
-  return map[status] ?? 'bg-gray-400';
-}
-
-/**
- * Returns all status values present for an order (parent + all sub-items).
- */
-export function getAllStatuses(order: OrderWithCategoryAndItems): OrderStatus[] {
-  const statuses: OrderStatus[] = [order.status];
-  if (order.order_items && order.order_items.length > 0) {
-    for (const item of order.order_items) {
-      statuses.push(item.status);
-    }
-  }
-  return statuses;
-}
-
-/**
- * Computed display status:
- *  - No sub-items → parent status
- *  - All same → that status
- *  - Mixed → 'Mixed'
- */
-export function getComputedStatus(order: OrderWithCategoryAndItems): OrderStatus | 'Mixed' {
-  if (!order.order_items || order.order_items.length === 0) return order.status;
-  const statuses = getAllStatuses(order);
-  const unique = new Set(statuses);
-  if (unique.size === 1) return statuses[0];
-  return 'Mixed';
-}
-
-/**
- * Item-level counts for status summary cards.
- * Orders without sub-items contribute 1 to their status bucket.
- * Orders with sub-items contribute 1 per item (parent + each sub-item).
- */
-export function getItemLevelCounts(orders: OrderWithCategoryAndItems[]): Record<OrderStatus, number> {
-  const counts: Record<OrderStatus, number> = { 'Pending': 0, 'In Progress': 0, 'Packing': 0, 'Dispatched': 0 };
-  for (const order of orders) {
-    counts[order.status] = (counts[order.status] || 0) + 1;
-    if (order.order_items && order.order_items.length > 0) {
-      for (const item of order.order_items) {
-        counts[item.status] = (counts[item.status] || 0) + 1;
-      }
-    }
-  }
-  return counts;
-}
-

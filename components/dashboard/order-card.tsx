@@ -1,8 +1,8 @@
 import { Badge } from '@/components/ui/badge';
-import { formatDate, cn, getStatusDotClass, getComputedStatus, getAllStatuses } from '@/lib/utils';
+import { formatDate, cn } from '@/lib/utils';
 import { getCategoryColor } from '@/lib/category-colors';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
-import type { OrderStatus, OrderWithCategory, OrderWithCategoryAndItems } from '@/types/database';
+import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
 
 interface OrderCardProps {
   order: OrderWithCategoryAndItems;
@@ -16,12 +16,6 @@ interface OrderCardProps {
 
 export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, isNew, isFlash }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
-  const computedStatus = getComputedStatus(order);
-  const isMixed = computedStatus === 'Mixed';
-  const allStatuses = isMixed ? getAllStatuses(order) : [];
-  // Unique statuses in canonical order for the dot display
-  const statusOrder: OrderStatus[] = ['Pending', 'In Progress', 'Packing', 'Dispatched'];
-  const uniqueStatuses = isMixed ? statusOrder.filter(s => allStatuses.includes(s)) : [];
 
   const statusBorderClass = {
     'Pending':     'status-border-pending',
@@ -85,7 +79,7 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, 
               aria-label="Change Status"
             >
               <SelectTrigger className="p-0 border-0 h-auto w-auto bg-transparent hover:bg-transparent data-[focus-visible]:ring-0 data-[focus-visible]:ring-offset-0 [&>svg]:hidden">
-                <Badge status={isMixed ? 'Mixed' : order.status} className="whitespace-nowrap shadow-sm cursor-pointer hover:opacity-90 transition-opacity" />
+                <Badge status={order.status} className="whitespace-nowrap shadow-sm cursor-pointer hover:opacity-90 transition-opacity" />
               </SelectTrigger>
               <SelectPopover className="w-[140px]">
                 <SelectListBox>
@@ -97,16 +91,7 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, 
               </SelectPopover>
             </Select>
           ) : (
-            <Badge status={isMixed ? 'Mixed' : order.status} className="whitespace-nowrap shadow-sm" />
-          )}
-          {/* Mixed-status dot row — appears below the badge when sub-items have differing statuses */}
-          {isMixed && uniqueStatuses.length > 0 && (
-            <div className="flex items-center gap-1 mt-1.5 justify-end" title={`Items: ${uniqueStatuses.join(', ')}`}>
-              {uniqueStatuses.map(s => (
-                <div key={s} className={`w-2 h-2 rounded-full shrink-0 ${getStatusDotClass(s)}`}
-                  title={s} aria-label={s} />
-              ))}
-            </div>
+            <Badge status={order.status} className="whitespace-nowrap shadow-sm" />
           )}
         </div>
       </div>
@@ -129,8 +114,6 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, 
 
 export function OrderListItem({ order, isAdmin, onStatusChange, onClick, className }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
-  const computedStatus = getComputedStatus(order);
-  const isMixed = computedStatus === 'Mixed';
 
   return (
     <tr 
@@ -167,7 +150,7 @@ export function OrderListItem({ order, isAdmin, onStatusChange, onClick, classNa
               aria-label="Change Status"
             >
               <SelectTrigger className="p-0 border-0 h-auto w-auto bg-transparent hover:bg-transparent data-[focus-visible]:ring-0 data-[focus-visible]:ring-offset-0 [&>svg]:hidden">
-                <Badge status={isMixed ? 'Mixed' : order.status} className="whitespace-nowrap shadow-sm text-[11px] py-1 cursor-pointer hover:opacity-90 transition-opacity" />
+                <Badge status={order.status} className="whitespace-nowrap shadow-sm text-[11px] py-1 cursor-pointer hover:opacity-90 transition-opacity" />
               </SelectTrigger>
               <SelectPopover className="w-[140px]">
                 <SelectListBox>
@@ -179,7 +162,7 @@ export function OrderListItem({ order, isAdmin, onStatusChange, onClick, classNa
               </SelectPopover>
             </Select>
           ) : (
-            <Badge status={isMixed ? 'Mixed' : order.status} className="whitespace-nowrap shadow-sm text-[11px] py-1 pointer-events-none" />
+            <Badge status={order.status} className="whitespace-nowrap shadow-sm text-[11px] py-1 pointer-events-none" />
           )}
         </div>
       </td>

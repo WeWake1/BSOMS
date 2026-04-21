@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { OrderWithCategoryAndItems, Category, OrderItem } from '@/types/database';
+import type { OrderWithCategoryAndItems, Category } from '@/types/database';
 
 export function useOrders() {
   const [orders, setOrders] = useState<OrderWithCategoryAndItems[]>([]);
@@ -38,23 +38,6 @@ export function useOrders() {
     newTimers.current.set(id, t);
   };
 
-  /** Re-fetch order_items for a specific order and update state */
-  const refreshOrderItems = async (orderId: string) => {
-    const { data: items } = await supabase
-      .from('order_items')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: true });
-
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === orderId
-          ? { ...o, order_items: (items as OrderItem[]) || [] }
-          : o
-      )
-    );
-  };
-
   useEffect(() => {
     let mounted = true;
 
@@ -69,26 +52,12 @@ export function useOrders() {
         if (catsError) throw catsError;
         if (mounted) setCategories(cats || []);
 
-        // Try to fetch with sub-items; fall back gracefully if order_items table doesn't exist yet
-        let ords: any[] | null = null;
-        const { data: ordsWithItems, error: ordsError } = await supabase
+        const { data: ords, error: ordsError } = await supabase
           .from('orders')
-          .select('*, categories(*), order_items(*)')
+          .select('*, categories(*)')
           .order('created_at', { ascending: false });
 
-        if (ordsError) {
-          // order_items table likely missing — fall back to orders without sub-items
-          console.warn('order_items unavailable, loading orders without sub-items:', ordsError.message);
-          const { data: ordsBasic, error: basicError } = await supabase
-            .from('orders')
-            .select('*, categories(*)')
-            .order('created_at', { ascending: false });
-          if (basicError) throw basicError;
-          ords = (ordsBasic || []).map((o: any) => ({ ...o, order_items: [] }));
-        } else {
-          ords = ordsWithItems || [];
-        }
-
+        if (ordsError) throw ordsError;
         if (mounted) setOrders((ords as unknown as OrderWithCategoryAndItems[]) || []);
       } catch (err: any) {
         console.error('Error fetching data:', err);
@@ -115,12 +84,8 @@ export function useOrders() {
               .single()
               .then(({ data: cat }) => {
                 newOrder.categories = cat;
-                newOrder.order_items = [];
                 setOrders((prev) => [newOrder as OrderWithCategoryAndItems, ...prev]);
                 addNew(newOrder.id);
-                // Fetch actual sub-items shortly after — handles race where order_items
-                // Realtime fires before this INSERT handler adds the order to state.
-                setTimeout(() => refreshOrderItems(newOrder.id), 600);
               });
           } else if (payload.eventType === 'UPDATE') {
             const updatedOrder = payload.new as any;
@@ -131,11 +96,10 @@ export function useOrders() {
               .single()
               .then(({ data: cat }) => {
                 updatedOrder.categories = cat;
-                // Preserve existing order_items when updating the order row
                 setOrders((prev) =>
                   prev.map((o) =>
                     o.id === updatedOrder.id
-                      ? { ...(updatedOrder as OrderWithCategoryAndItems), order_items: o.order_items || [] }
+                      ? (updatedOrder as OrderWithCategoryAndItems)
                       : o
                   )
                 );
@@ -150,24 +114,6 @@ export function useOrders() {
       .subscribe((status) => {
         if (mounted) setIsConnected(status === 'SUBSCRIBED');
       });
-
-    // Realtime subscription for order_items changes
-    const orderItemsChannel = supabase
-      .channel('public:order_items')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_items' },
-        (payload) => {
-          // For any change to order_items, re-fetch the parent order's items
-          const orderId =
-            (payload.new as any)?.order_id || (payload.old as any)?.order_id;
-          if (orderId) {
-            refreshOrderItems(orderId);
-            addFlash(orderId); // Flash the parent order card
-          }
-        }
-      )
-      .subscribe();
 
     const categoryChannel = supabase
       .channel('public:categories')
@@ -191,10 +137,9 @@ export function useOrders() {
       flashTimers.current.forEach(clearTimeout);
       newTimers.current.forEach(clearTimeout);
       supabase.removeChannel(orderChannel);
-      supabase.removeChannel(orderItemsChannel);
       supabase.removeChannel(categoryChannel);
     };
   }, [supabase]);
 
-  return { orders, categories, loading, error, flashIds, newIds, isConnected, refreshOrderItems };
+  return { orders, categories, loading, error, flashIds, newIds, isConnected };
 }
