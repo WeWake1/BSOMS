@@ -1,134 +1,140 @@
 # Concerns & Technical Debt
 
-## High Severity
+## Critical Issues
 
 ### 1. Build Errors Suppressed
-**Location:** `next.config.mjs`
-```javascript
+**Files:** `next.config.mjs` (lines 12-17)
+
+Both ESLint and TypeScript errors are suppressed during production builds:
+```js
 eslint: { ignoreDuringBuilds: true },
 typescript: { ignoreBuildErrors: true },
 ```
-Both ESLint and TypeScript errors are silently ignored during production builds. This means broken code can be deployed to production without any compile-time safety net.
+This means type errors and lint violations will silently pass into production. The two existing `@ts-ignore` comments in `DashboardClient.tsx` (lines 48, 59) are symptoms of this — Supabase `.update()` type inference issues that were suppressed rather than fixed.
 
-**Risk:** Shipping runtime errors to production.
+**Risk:** Silent regressions. A type error in a critical auth path could ship to production unnoticed.
+
+---
 
 ### 2. No Automated Tests
-**Location:** Entire codebase
-No unit tests, integration tests, or E2E tests exist. All verification is manual. See `TESTING.md` for full assessment.
+**See:** `TESTING.md`
 
-**Risk:** Regressions go undetected. Refactors are unsafe.
+Zero test coverage — no unit, integration, or E2E tests. No test runner installed. All verification is manual.
 
-### 3. Service Role Key Exposure Risk
-**Location:** `lib/supabase/server.ts`
-The service role client uses `process.env.SUPABASE_SERVICE_ROLE_KEY` and is only used in server-side code (`lib/auth.ts`). However, the `require()` call for `@supabase/supabase-js` is unusual:
-```typescript
-const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
-```
-This pattern works but could be fragile in edge runtime or future Next.js versions.
+**Risk:** Regressions on every change. Particularly dangerous for auth/RLS logic where bugs are invisible until exploited.
 
-**Risk:** Build/runtime breakage on Next.js upgrade. Security is currently OK (server-only).
+---
 
-### 4. Monolithic Dashboard Component
-**Location:** `app/(dashboard)/dashboard/DashboardClient.tsx` (458 lines)
-This single component manages:
-- Filter state (5 filters + sort + view mode)
-- Order selection and sheet open/close state
-- Export functionality (PDF + PNG)
-- Status change with dispatch date modal
-- Off-screen export table rendering
+### 3. Service Role Key Usage Pattern
+**File:** `lib/supabase/server.ts` (lines 31-47), `lib/auth.ts` (lines 25-31)
 
-**Risk:** Hard to maintain, test, and extend. Single re-render affects everything.
+The service role client bypasses all RLS policies. Currently used for profile fetching in `getUser()`. This is correct for auth checks but:
+- Uses `require()` instead of ESM import (due to mixing SSR wrapper with base client).
+- No cache or connection pooling — creates a new client per auth check.
 
-## Medium Severity
+**Risk:** If this pattern is copied for other operations, it could inadvertently bypass security.
 
-### 5. Direct Supabase Queries in Components
-**Location:** `DashboardClient.tsx`, `order-form-sheet.tsx`, `order-detail-sheet.tsx`, `settings-drawer.tsx`
-Supabase queries are embedded directly in components rather than extracted to a data layer. There is an empty `lib/supabase/queries/` directory that was never populated.
+---
 
-**Risk:** Duplicated query logic, harder to refactor data access patterns.
+## Moderate Issues
 
-### 6. Type Assertions and Casts
-**Location:** Multiple files
-```typescript
-// Examples from the codebase:
-(supabase.from('orders') as any).update(...)
-(supabase.from('categories') as any).insert(...)
-newOrder as OrderWithCategory
-(ords as unknown as OrderWithCategory[])
-```
-Supabase client methods are frequently cast to `any` to avoid type mismatches.
+### 4. Supabase Client Stability in SettingsDrawer
+**File:** `components/dashboard/settings-drawer.tsx` (line 47)
 
-**Risk:** Silent type errors, no compile-time safety on query shapes.
-
-### 7. Abandoned Sub-Orders Feature
-**Location:** `supabase/migration_sub_orders_rollback.sql`
-A sub-orders/line-items feature was attempted and fully rolled back. The rollback SQL exists as documentation but the feature was never completed.
-
-**Risk:** Confusion about data model capabilities. Schema migration is in an unusual state.
-
-### 8. Audio Feature Not in Original Spec
-**Location:** `types/database.ts` (`audio_url`), `order-form-sheet.tsx`, `order-detail-sheet.tsx`
-Voice note recording/playback was added beyond the original AGENTS.md spec. The `order-audio` Supabase Storage bucket and associated RLS policies exist but may not be fully tested.
-
-**Risk:** Feature may have edge cases. Not part of the spec's test coverage.
-
-### 9. Category Color Not in Original Schema
-**Location:** `types/database.ts` (`color` field on Category), `lib/category-colors.ts`
-The `categories` table has a `color` column that's not in the README SQL schema, suggesting it was added after initial setup. The code handles legacy entries without colors gracefully (UUID hash fallback).
-
-**Risk:** Schema drift between README documentation and actual database.
-
-## Low Severity
-
-### 10. `html2canvas` May Be Unused
-**Location:** `package.json`
-Both `html2canvas` and `html-to-image` are installed. The codebase only imports from `html-to-image` (`toPng`). The `html2canvas` package may be a leftover from an earlier implementation.
-
-**Risk:** Unnecessary bundle size.
-
-### 11. Dead Utility File
-**Location:** `check_profiles.js` (root)
-A standalone Node.js script for debugging profile issues. Not part of the app's runtime or build. Should be in a `scripts/` directory or removed.
-
-**Risk:** Minor clutter.
-
-### 12. Empty `queries/` Directory
-**Location:** `lib/supabase/queries/`
-Created during initial project setup as part of the planned architecture but never populated. All queries are inline in components.
-
-**Risk:** Misleading directory structure.
-
-### 13. Hardcoded Colors in Export Table
-**Location:** `DashboardClient.tsx` (lines 400-453)
-The off-screen PNG export container uses hardcoded Tailwind colors (`bg-white`, `text-gray-900`, `bg-indigo-600`) instead of design tokens. This is intentional (exports should always be light with consistent colors) but breaks the token convention.
-
-**Risk:** None functionally, but inconsistent with design token philosophy.
-
-### 14. Date Formatting Locale Hardcoded
-**Location:** `lib/utils.ts`, `lib/pdf-export.ts`
-Date formatting is hardcoded to `en-IN` locale:
-```typescript
-new Date(date).toLocaleDateString('en-IN', { ... })
+```tsx
+const supabase = createClient(); // NOT in useState
 ```
 
-**Risk:** Not localization-ready if deployed outside India.
+Unlike `DashboardClient`, `OrderFormSheet`, and `OrderDetailSheet` which correctly use `useState(() => createClient())` for a stable reference, `SettingsDrawer` creates the client directly. This means a new client is created on every render.
 
-## Security Observations
+**Risk:** Potential duplicate subscriptions or stale references. Inconsistency with the pattern used elsewhere.
 
-- ✅ RLS enabled on all tables with appropriate policies
-- ✅ Auth enforced at middleware, layout, and database layers
-- ✅ Service role key is server-only
-- ✅ Storage buckets are private with admin-only write
-- ✅ No secrets in client-side code
-- ✅ Generic auth error messages (no email enumeration)
-- ⚠️ Session tokens managed by Supabase (no custom token handling needed)
-- ⚠️ No CSRF protection beyond Next.js defaults
-- ⚠️ No rate limiting on auth attempts (relies on Supabase defaults)
+---
 
-## Performance Notes
+### 5. Dark Mode Flash on Load
+**File:** `components/dashboard/settings-drawer.tsx` (lines 81-85)
 
-- Order count is expected to stay under 100 → no pagination needed
-- No Server-Side Rendering for order data (all client-fetched after auth gate)
-- Realtime subscription creates persistent WebSocket per connected client
-- PNG export renders a hidden 1200px-wide table for capture
-- Font: single Google Font (Plus Jakarta Sans) loaded via `next/font` (optimized)
+Dark mode is managed client-side via `localStorage` + class toggle. There is no SSR-aware dark mode (no cookie, no `<script>` in `<head>` to apply the class before paint).
+
+**Risk:** Users in dark mode will see a brief flash of light mode on page load/refresh (FOUC).
+
+---
+
+### 6. Hardcoded Colors in SettingsDrawer
+**File:** `components/dashboard/settings-drawer.tsx`
+
+This component uses hardcoded Tailwind colors (`bg-gray-50`, `text-gray-900`, `bg-indigo-100`, etc.) instead of the semantic token system (`bg-muted`, `text-foreground`, etc.) used consistently everywhere else.
+
+**Risk:** Inconsistency — these colors won't properly adapt to theme changes or future palette updates.
+
+---
+
+### 7. Stale SQL Migration Files
+**File:** `supabase/` directory
+
+Contains 3 SQL files related to the sub-orders feature that was added and then rolled back:
+- `migration_order_items.sql` — creates `order_items` table (no longer exists)
+- `migration_order_items_sort_order.sql` — adds sort order to `order_items`
+- `migration_sub_orders_rollback.sql` — rolls back to flat order structure
+
+These are historical artifacts. The current database schema does not include `order_items`.
+
+**Risk:** Confusion for developers. Someone might accidentally run these migrations.
+
+---
+
+### 8. Backward Compatibility Type Alias
+**File:** `types/database.ts` (line 34)
+
+```tsx
+export type OrderWithCategoryAndItems = OrderWithCategory;
+```
+
+This type alias exists for backward compatibility from the sub-orders removal. `OrderWithCategoryAndItems` is still referenced in `useOrders.ts`, `order-card.tsx`, `order-form-sheet.tsx`, etc.
+
+**Risk:** Confusing naming — "Items" suggests sub-orders still exist when they don't.
+
+---
+
+### 9. Empty Queries Directory
+**File:** `lib/supabase/queries/`
+
+This directory exists but contains zero files. It was intended for typed Supabase query modules per the project spec but was never populated.
+
+**Risk:** None currently. The project works fine with inline queries. But it's unused scaffolding.
+
+---
+
+### 10. Unused Font Files
+**File:** `app/fonts/GeistVF.woff`, `app/fonts/GeistMonoVF.woff`
+
+Geist fonts are bundled but the app uses Plus Jakarta Sans (loaded via Google Fonts). These files are dead weight.
+
+**Risk:** ~134KB of unused assets shipped to the repo.
+
+---
+
+## Security Considerations
+
+### RLS is Properly Configured
+RLS is enabled on all three tables (`orders`, `categories`, `profiles`). The admin/viewer role separation is enforced server-side.
+
+### No Exposed Secrets
+`.env.local` is gitignored. `.env.example` contains placeholder values only. Service role key is server-side only.
+
+### Authentication is Sound
+The middleware + `requireAuth()` double-check pattern is robust. Profile lookup uses service role to bypass RLS, preventing auth deadlocks.
+
+### Storage Access
+Supabase Storage buckets (`order-photos`, `order-audio`) allow all authenticated users to read. Only admin can upload/delete. This is correct.
+
+## Performance Considerations
+
+### No Pagination
+All orders are loaded at once. With expected <100 orders, this is fine. If order volume grows significantly, the flat list + client-side filtering will degrade.
+
+### No Image Optimization
+Order photos are loaded as raw Supabase Storage URLs via `<img>` tags. No `next/image`, no resizing, no WebP conversion. Large photos will impact mobile performance.
+
+### Off-Screen Export DOM
+The PNG export renders a full table off-screen (`absolute left-[-9999px]`). This DOM is always present, even when not exporting. With 100 orders, this adds ~100 table rows to the DOM permanently.

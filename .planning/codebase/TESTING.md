@@ -1,59 +1,49 @@
 # Testing
 
-## Current State
+## Current State: No Tests
 
-**No automated tests exist in the project.**
+OrderFlow has **zero automated tests** — no unit tests, integration tests, or end-to-end tests exist in the codebase.
 
-- No test framework configured (no Jest, Vitest, Playwright, or Cypress)
-- No test files in the source tree (only in `node_modules/next/`)
-- No test scripts in `package.json`
-- No CI/CD pipeline for tests
-- No `coverage/` directory
+- No test runner is configured (no Jest, Vitest, Playwright, or Cypress).
+- No test files exist anywhere in the project.
+- No `test` script in `package.json`.
+- No CI/CD pipeline configured.
 
-## Verification Approach
-
-Testing and verification have been performed through:
-
-1. **Manual testing** — direct interaction via browser at localhost:3000
-2. **GSD verify-work** — conversational UAT checkpoints via agent workflow
-3. **Build validation** — `next build` (with errors ignored)
-4. **Browser-based audits** — Impeccable design audits (/audit, /polish)
-
-## Existing Quality Checks
-
-| Check | Tool | Notes |
-|-------|------|-------|
-| Linting | ESLint | `next/core-web-vitals` + `next/typescript` (relaxed rules) |
-| Type checking | TypeScript | `tsc` (but `ignoreBuildErrors: true` in next.config) |
-| Build | Next.js | Both ESLint and TS errors are ignored during build |
-| Accessibility | React Aria | Accessible primitives (Select, ListBox) used in forms |
-| Reduced motion | CSS | `@media (prefers-reduced-motion)` globally respected |
-
-## Testing Gaps
+## What Would Need Testing
 
 ### High Priority
-- **No unit tests** for utility functions (`formatDate`, `getStatusColor`, `getCategoryColor`, `cn`)
-- **No integration tests** for Supabase queries / RLS policies
-- **No auth flow tests** (login, session, role-based access)
-- **No form validation tests** (order creation/editing)
-- **No realtime subscription tests**
+
+1. **Auth flow** — login, session persistence, role-based access control, middleware redirects.
+2. **Order CRUD** — create, update, delete via Supabase client with correct payloads.
+3. **Realtime subscriptions** — INSERT/UPDATE/DELETE events updating local state correctly.
+4. **RLS enforcement** — viewers cannot modify orders, admins can.
+5. **Filter/sort logic** — `filteredOrders` and `sortedOrders` memos in `DashboardClient`.
 
 ### Medium Priority
-- **No component tests** for UI primitives (Button variants, Input states)
-- **No E2E tests** for critical flows (login → dashboard → create order → see update)
-- **No visual regression tests** (design system consistency)
 
-### Low Priority
-- **No PDF export tests** (output correctness)
-- **No PWA tests** (service worker, offline behavior)
-- **No accessibility tests** (automated WCAG checks)
+6. **Photo/audio upload** — file upload to Supabase Storage, signed URL generation.
+7. **PDF export** — correct data mapping, column layout.
+8. **PNG export** — off-screen table rendering, `html-to-image` capture.
+9. **Category management** — CRUD operations, color assignment, inline add.
 
-## Recommended Test Setup
+### Lower Priority
 
-If tests were to be added, the likely configuration would be:
+10. **Dark mode toggle** — `localStorage` persistence, class toggling.
+11. **Animations** — reduced motion override, flash/new timers.
+12. **Form validation** — required field enforcement, error messages.
 
-- **Unit/Integration:** Vitest (Next.js compatible, fast)
-- **Component:** Testing Library + Vitest
-- **E2E:** Playwright (cross-browser, mobile viewport testing)
-- **Visual:** Playwright screenshots or Chromatic
-- **CI:** GitHub Actions on PR
+## Testing Considerations
+
+- **Supabase mocking** — any test suite would need to mock `@supabase/ssr` and `@supabase/supabase-js` clients.
+- **Realtime mocking** — Supabase channels would need to be simulated for realtime tests.
+- **Server component testing** — `requireAuth()` and layout components use Next.js server APIs (`cookies()`, `redirect()`).
+- **No pure utility functions to test easily** — most logic is embedded in React components or hooks.
+
+## Manual QA
+
+Currently all testing is manual:
+- Mobile testing at 390px viewport width (iPhone 14).
+- Admin vs. viewer role verification via Supabase dashboard.
+- Realtime verification by opening multiple browser tabs.
+- Dark mode toggle verification.
+- PDF/PNG export visual verification.

@@ -2,95 +2,87 @@
 
 ## Supabase (Primary Backend)
 
-### Database (Postgres)
-
-**Connection:** Via `@supabase/ssr` with cookie-based auth for SSR.
-
-**Tables:**
-
-| Table | Purpose | Key Columns |
-|-------|---------|-------------|
-| `orders` | Core order records | `id`, `order_no` (unique), `customer_name`, `category_id` (FK), `date`, `due_date`, `dispatch_date`, `length`, `width`, `qty`, `description`, `photo_url`, `audio_url`, `status` (enum), `created_at`, `updated_at` |
-| `categories` | Order categorization | `id`, `name` (unique), `color`, `created_at` |
-| `profiles` | User role management | `id` (FK → auth.users), `full_name`, `role` ('admin'\|'viewer') |
-
-**Enum:** `order_status` — `'Pending'`, `'In Progress'`, `'Packing'`, `'Dispatched'`
-
-**Triggers:**
-- `update_updated_at()` — auto-sets `orders.updated_at` on row update
-- `handle_new_user()` — auto-creates `profiles` row with `role='viewer'` on auth signup
-
-**RLS Policies:**
-- All tables require authenticated access
-- Viewers: SELECT only
-- Admin: full CRUD (checked via `get_user_role()` helper function)
+Supabase provides ALL backend services for OrderFlow: database, authentication, storage, and realtime.
 
 ### Authentication
 
-**Type:** Email/password via Supabase Auth
+- **Method:** Email + password via `supabase.auth.signInWithPassword()`.
+- **Login flow:** Server Action in `app/(auth)/login/actions.ts` → validates credentials → redirects to `/dashboard`.
+- **Session management:** Cookie-based via `@supabase/ssr`. Middleware at `middleware.ts` refreshes session on every request.
+- **Role detection:** After auth, profile is fetched from `profiles` table using service role client (bypasses RLS). Role is `admin` or `viewer`.
+- **Route protection:** Dual layer:
+  1. `middleware.ts` — redirects unauthenticated users from `/dashboard` to `/login`, and authenticated users from `/login` to `/dashboard`.
+  2. `lib/auth.ts` — `requireAuth()` and `requireAdmin()` server-side helpers used in layouts and pages.
 
-**Flow:**
-1. Login form posts to server action (`app/(auth)/login/actions.ts`)
-2. `signInWithPassword()` called server-side
-3. Session stored in cookies via `@supabase/ssr`
-4. Middleware (`middleware.ts`) redirects:
-   - Unauthenticated → `/login`
-   - Authenticated on `/login` → `/dashboard`
-5. Profile/role fetched via service client in `lib/auth.ts`
+### Database Tables
 
-**Clients:**
-- `lib/supabase/client.ts` — Browser client (`createBrowserClient`)
-- `lib/supabase/server.ts` — Server client (`createServerClient` with cookies)
-- `lib/supabase/server.ts` — Service role client (`createServiceClient`, no cookies, bypasses RLS)
-- `lib/supabase/middleware.ts` — Middleware session refresh client
+| Table        | Purpose                           | RLS |
+|--------------|-----------------------------------|-----|
+| `orders`     | All order records                 | Yes |
+| `categories` | Order categories with colors      | Yes |
+| `profiles`   | User profiles with roles          | Yes |
 
-### Realtime
+**RLS Policy:** Viewers get SELECT only; Admin gets full CRUD. All authenticated users can SELECT on profiles.
 
-**Subscription:** Postgres Changes on `orders` and `categories` tables
+### Supabase Realtime
 
-**Implementation:** `hooks/useOrders.ts`
-- Channel `public:orders` — listens for INSERT, UPDATE, DELETE
-- Channel `public:categories` — listens for INSERT, UPDATE, DELETE
-- On INSERT: fetches related category, prepends to list, triggers "new" animation
-- On UPDATE: fetches related category, replaces in list, triggers "flash" animation
-- On DELETE: removes from list
+- **Two channels subscribed** in `hooks/useOrders.ts`:
+  1. `public:orders` — listens for INSERT, UPDATE, DELETE on `orders` table.
+  2. `public:categories` — listens for INSERT, UPDATE, DELETE on `categories` table.
+- On INSERT: fetches the category for the new order, prepends to local state, triggers `animate-new-order` animation.
+- On UPDATE: replaces order in local state, triggers `animate-card-flash` animation.
+- On DELETE: removes from local state.
+- Connection status exposed via `isConnected` state — displayed as a live/connecting indicator in the status cards.
 
-**Connection indicator:** `isConnected` state exposed from hook, displayed via live-pulse dot on status cards
+### Supabase Storage
 
-### Storage
+Two buckets:
 
-**Buckets:**
+| Bucket         | Purpose             | Upload  | Read     |
+|----------------|---------------------|---------|----------|
+| `order-photos` | Order reference images | Admin   | All auth |
+| `order-audio`  | Voice note recordings  | Admin   | All auth |
 
-| Bucket | Purpose | Access |
-|--------|---------|--------|
-| `order-photos` | Single photo per order | Admin: upload/delete, All auth: read |
-| `order-audio` | Voice notes per order | Admin: upload/delete, All auth: read |
+- File upload happens directly from browser in `order-form-sheet.tsx`.
+- File paths stored in `orders.photo_url` and `orders.audio_url`.
+- Signed URLs generated for display (1-hour TTL via `createSignedUrl(path, 3600)`).
+- Photo preview shows immediately using local `URL.createObjectURL()` while upload is in progress.
 
-**Upload flow:**
-1. File selected or recorded in `OrderFormSheet`
-2. Uploaded to Supabase Storage with random filename
-3. Storage path saved to order record (`photo_url` / `audio_url`)
-4. Signed URLs generated on-demand for viewing (1 hour expiry)
+### Supabase Client Architecture
 
-## Vercel (Hosting)
+Three client variants in `lib/supabase/`:
 
-- Deployed from GitHub → Vercel
-- Auto-deploys on push to `main`
-- Environment variables configured in Vercel project settings
-- No custom API routes — all backend via Supabase directly
+| File            | Type     | Auth      | Usage                              |
+|-----------------|----------|-----------|------------------------------------|
+| `client.ts`     | Browser  | Anon key  | Client components, realtime        |
+| `server.ts`     | Server   | Anon key  | Server components (cookie-based)   |
+| `server.ts`     | Service  | Service key | Admin operations (bypass RLS)    |
+| `middleware.ts` | Middleware | Anon key | Session refresh in middleware      |
 
-## PWA
+**Service client** is created via `createServiceClient()` in `lib/supabase/server.ts` — uses `require('@supabase/supabase-js')` directly (not SSR wrapper) with `SUPABASE_SERVICE_ROLE_KEY`. Used exclusively in `lib/auth.ts` for profile fetching.
 
-- Web app manifest at `app/manifest.ts`
-- Service worker via `next-pwa` (disabled in dev)
-- Icons: `public/icon-192x192.png`, `public/icon-512x512.png`
-- `display: standalone`, `theme_color: #4f46e5` (indigo-600)
+## Export Integrations
+
+### PDF Export (`lib/pdf-export.ts`)
+- Uses `jsPDF` + `jspdf-autotable`.
+- Generates landscape A4 PDF with indigo-600 header.
+- Exports currently filtered orders with all columns.
+- Triggered from export dropdown in dashboard header.
+
+### PNG Export (DashboardClient.tsx)
+- Uses `html-to-image` (`toPng()`).
+- Renders an off-screen HTML table (fixed 1200px width, white background).
+- Captures with `devicePixelRatio` for retina quality.
+- Triggered from export dropdown in dashboard header.
+
+## Environment Variables
+
+| Variable                       | Scope       | Required |
+|--------------------------------|-------------|----------|
+| `NEXT_PUBLIC_SUPABASE_URL`     | Client+Server | Yes    |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`| Client+Server | Yes    |
+| `SUPABASE_SERVICE_ROLE_KEY`    | Server only   | Yes    |
 
 ## No Other External APIs
 
-The application does not currently integrate with:
-- Email services
-- Payment providers
-- Analytics services
-- Third-party webhooks
-- Google Sheets sync (was explored but not implemented in codebase)
+The application does not integrate with any third-party APIs, payment providers, analytics, or external services beyond Supabase. It is a self-contained internal tool.

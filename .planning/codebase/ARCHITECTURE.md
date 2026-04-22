@@ -1,127 +1,106 @@
 # Architecture
 
-## Pattern
+## Pattern: Server-Client Hybrid (Next.js App Router)
 
-**Hybrid SSR/CSR with BaaS (Backend-as-a-Service)**
-
-The app follows Next.js 14 App Router conventions:
-- **Server-side:** Route protection, auth verification, profile fetching
-- **Client-side:** Dashboard rendering, realtime subscriptions, form interactions
-- **Backend:** Supabase handles all data persistence, auth, storage, and realtime — no custom API routes
-
-## Layered Architecture
+OrderFlow follows the Next.js 14 App Router pattern where server components handle authentication and data fetching, while client components manage interactivity and realtime subscriptions.
 
 ```
-┌─────────────────────────────────────────────┐
-│  Next.js Middleware (route protection)       │
-├─────────────────────────────────────────────┤
-│  Server Components (auth gates, metadata)    │
-│  ├── app/(auth)/login/page.tsx  (client)     │
-│  ├── app/(dashboard)/dashboard/page.tsx (srv)│
-│  └── Layout wrappers (auth checks)          │
-├─────────────────────────────────────────────┤
-│  Client Components (interactive UI)          │
-│  ├── DashboardClient.tsx  (main orchestrator)│
-│  ├── Dashboard components (cards, forms...)  │
-│  └── UI primitives (Button, Input, Drawer...) │
-├─────────────────────────────────────────────┤
-│  Custom Hooks (data + realtime)              │
-│  └── useOrders.ts (fetch + subscribe)        │
-├─────────────────────────────────────────────┤
-│  Library Layer (auth, utils, export)         │
-│  ├── lib/auth.ts (getUser, requireAuth)      │
-│  ├── lib/utils.ts (formatting, status colors)│
-│  ├── lib/pdf-export.ts (jsPDF report)        │
-│  └── lib/category-colors.ts (color system)   │
-├─────────────────────────────────────────────┤
-│  Supabase Client Layer                       │
-│  ├── lib/supabase/client.ts (browser)        │
-│  ├── lib/supabase/server.ts (SSR + service)  │
-│  └── lib/supabase/middleware.ts (session)     │
-├─────────────────────────────────────────────┤
-│  Supabase (Postgres, Auth, Storage, Realtime)│
-└─────────────────────────────────────────────┘
+Request → Middleware (session refresh, route guards)
+       → Server Component (auth check, user profile)
+       → Client Component (realtime data, UI interactions)
 ```
+
+## Layers
+
+### 1. Middleware Layer (`middleware.ts`)
+- Intercepts ALL requests (except static assets).
+- Refreshes Supabase auth session cookies.
+- Redirects unauthenticated users away from `/dashboard`.
+- Redirects authenticated users away from `/login`.
+- Does NOT check roles — that's handled by the auth helpers.
+
+### 2. Auth Layer (`lib/auth.ts`)
+- Server-side only.
+- `getUser()` — fetches auth user + profile. Uses service client to bypass RLS for profile lookup.
+- `requireAuth()` — redirects to `/login` if unauthenticated. Used in dashboard layout.
+- `requireAdmin()` — redirects to `/dashboard` if not admin role.
+- `redirectIfAuthenticated()` — for login page (currently unused, middleware handles this).
+
+### 3. Server Component Layer (Pages + Layouts)
+- `app/(dashboard)/layout.tsx` — calls `requireAuth()`, renders children.
+- `app/(dashboard)/dashboard/page.tsx` — calls `requireAuth()`, passes `user` to `DashboardClient`.
+- `app/(auth)/login/page.tsx` — client component with server action for sign-in.
+
+### 4. Client Component Layer (Dashboard + Forms)
+- `DashboardClient.tsx` — **THE main component** (456 lines). Orchestrates:
+  - Realtime order data via `useOrders()` hook
+  - Filter/sort/search state
+  - Export functionality (PDF + PNG)
+  - Status change mutations
+  - Dispatch date prompt modal
+  - Settings drawer, order detail sheet, order form sheet
+- All mutations go directly through Supabase client (no API routes or server actions for order CRUD).
+
+### 5. Data Layer (`hooks/useOrders.ts`)
+- Single hook managing all order + category data.
+- Initial fetch: `orders` with `categories(*)` join, `categories` standalone.
+- Realtime: Two Supabase channels for live updates.
+- Visual feedback: `flashIds` (update animation) and `newIds` (insert animation) tracked with timers.
 
 ## Data Flow
 
-### Initial Load
-1. User navigates to `/dashboard`
-2. `middleware.ts` intercepts → creates Supabase client from cookies → `getUser()` → redirects if unauthenticated
-3. `(dashboard)/layout.tsx` calls `requireAuth()` server-side
-4. `(dashboard)/dashboard/page.tsx` calls `requireAuth()` → passes `AuthUser` to `DashboardClient`
-5. `DashboardClient` renders, `useOrders()` hook fires:
-   - Fetches categories via `supabase.from('categories')`
-   - Fetches orders with join via `supabase.from('orders').select('*, categories(*)')`
-   - Subscribes to Realtime channels
-
-### Realtime Updates
-1. Any client writes to `orders` or `categories` table
-2. Supabase Realtime broadcasts postgres_changes event
-3. `useOrders` channel callback fires:
-   - INSERT → fetch category → prepend to state → trigger entry animation
-   - UPDATE → fetch category → replace in state → trigger flash animation
-   - DELETE → remove from state
-4. All connected clients (~10) see instant updates
-
-### Order CRUD (Admin)
-1. Admin clicks FAB → `OrderFormSheet` opens as bottom sheet
-2. Form submit → direct Supabase insert/update via browser client
-3. Photo/audio uploads → Supabase Storage → path saved to order record
-4. Realtime propagates change to all connected clients
-
-### Authentication
-1. Login form → Server Action → `signInWithPassword()`
-2. Session cookie set automatically by `@supabase/ssr`
-3. Server components read session via `createClient()` → `getUser()`
-4. Profile fetched via service role client (bypasses RLS for reliable profile lookup)
-
-## Key Abstractions
-
-### `AuthUser` (`lib/auth.ts`)
-Unified user object combining Supabase auth user + profile row:
-```typescript
-interface AuthUser {
-  id: string;
-  email: string | undefined;
-  profile: Profile; // { full_name, role }
-}
+### Read Path
+```
+useOrders() → supabase.from('orders').select('*, categories(*)') → setOrders()
+           → supabase.channel('public:orders').subscribe() → live updates
 ```
 
-### `useOrders` Hook (`hooks/useOrders.ts`)
-Single hook that manages all order/category data + realtime:
-- Returns: `orders`, `categories`, `loading`, `error`, `flashIds`, `newIds`, `isConnected`
-- Handles: initial fetch, realtime subscriptions, animation state management
-- Cleanup: unsubscribes channels on unmount
-
-### `OrderWithCategory` (`types/database.ts`)
-Order row with joined category — the primary type used throughout the dashboard:
-```typescript
-interface OrderWithCategory extends Order {
-  categories: Category | null;
-}
+### Write Path (Admin only)
+```
+DashboardClient → supabase.from('orders').update() → Realtime triggers → useOrders updates state
+OrderFormSheet  → supabase.from('orders').insert/update() → Realtime triggers → useOrders updates state
+OrderDetailSheet → supabase.from('orders').delete() → Realtime triggers → useOrders updates state
 ```
 
-### Category Color System (`lib/category-colors.ts`)
-12-color palette with Tailwind classes for bg, text, border, dot, swatch.
-Colors stored in DB per category. Falls back to deterministic UUID-hash for legacy entries.
+No API routes or server actions are used for order/category CRUD — all mutations happen via the browser Supabase client, and RLS enforces permissions.
 
-## Entry Points
+### Auth Flow
+```
+Login page → Server Action (signIn) → supabase.auth.signInWithPassword()
+          → Cookie set → Redirect to /dashboard
+          → Middleware refreshes cookie on each request
+```
 
-| Entry Point | Type | Purpose |
-|-------------|------|---------|
-| `middleware.ts` | Middleware | Route protection, session refresh |
-| `app/page.tsx` | Page | Root redirect → `/dashboard` |
-| `app/(auth)/login/page.tsx` | Page | Login form |
-| `app/(auth)/login/actions.ts` | Server Action | signIn / signOut |
-| `app/(dashboard)/dashboard/page.tsx` | Page | Dashboard entry (SSR auth gate) |
-| `app/(dashboard)/dashboard/DashboardClient.tsx` | Client Component | Main interactive dashboard |
+## Key Architectural Decisions
 
-## Security Model
+1. **No API routes for CRUD** — Relies entirely on Supabase RLS + client-side mutations. Simplifies architecture but means all business logic is in client components.
 
-- **Middleware:** Blocks unauthenticated access to `/dashboard`
-- **Server layouts:** Double-check auth via `requireAuth()`
-- **RLS:** Supabase row-level security enforces viewer/admin permissions at DB layer
-- **Service role client:** Used only server-side for profile lookups (bypasses RLS intentionally)
-- **Storage policies:** Admin-only upload/delete, authenticated read
-- **Auth actions:** Server-side only, no client-side auth calls
+2. **Service role client for profile fetch** — `lib/auth.ts` uses service role key to bypass RLS when reading profiles. This ensures auth checks never fail due to missing RLS policies on the profiles table.
+
+3. **Single monolithic hook** — `useOrders()` manages all data (orders, categories, realtime, animations). Everything re-renders together.
+
+4. **Bottom sheets over page navigation** — Detail views and forms use a `Drawer` component instead of separate routes. No URL changes for detail/edit views.
+
+5. **Client-side dark mode** — Toggled via `html.dark` class and `localStorage`. Not SSR-aware (may flash on initial load).
+
+6. **Off-screen DOM for PNG export** — A hidden table is rendered off-screen and captured via `html-to-image` for the PNG export feature.
+
+## Component Hierarchy
+
+```
+RootLayout (server — font, toaster)
+├── AuthLayout (server — gradient background)
+│   ├── LoginPage (client — login form)
+│   └── UnauthorizedPage (server — error display)
+└── DashboardLayout (server — requireAuth)
+    └── DashboardPage (server — passes user)
+        └── DashboardClient (client — THE app)
+            ├── StatusCards
+            ├── FilterBar
+            ├── OrderCard / OrderListItem (×N)
+            ├── OrderDetailSheet (Drawer)
+            ├── OrderFormSheet (Drawer)
+            ├── SettingsDrawer (Drawer)
+            ├── Dispatch Date Modal
+            └── Off-screen Export Table
+```
