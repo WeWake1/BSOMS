@@ -70,7 +70,7 @@ export function generateOrderReportPDF(orders: OrderWithCategory[]) {
       5: { cellWidth: 50 }, // Order & Customer
       6: { cellWidth: 25 }, // Status
       7: { cellWidth: 22 }, // Due Date
-      8: { cellWidth: 22 }, // Dispatch
+      8: { cellWidth: 22, halign: 'center' }, // Dispatch
     },
     // Footer: Page Numbers
     didDrawPage: (data) => {

@@ -294,6 +294,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                     {/* M8: scope=col on all th elements */}
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold w-[130px]">Order #</th>
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold">Customer</th>
+                    <th scope="col" className="px-3 sm:px-6 py-3 font-semibold hidden sm:table-cell">Date</th>
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold hidden sm:table-cell">Size</th>
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold text-right">Qty</th>
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold text-center">Status</th>
@@ -399,7 +400,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">OrderFlow — Order Report</h1>
             </div>
-            <div className="text-sm text-gray-500 text-right font-medium">
+            <div className="text-sm text-gray-500 text-right font-medium" suppressHydrationWarning>
               Exported: {new Date().toLocaleDateString('en-IN', {
                 day: '2-digit', month: 'short', year: 'numeric',
                 hour: '2-digit', minute: '2-digit'
@@ -435,7 +436,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   <td className="py-2.5 px-4 border border-gray-200 font-medium">{o.order_no} – {o.customer_name}</td>
                   <td className="py-2.5 px-4 border border-gray-200">{o.status}</td>
                   <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.due_date)}</td>
-                  <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.dispatch_date)}</td>
+                  <td className="py-2.5 px-4 border border-gray-200 text-center">{formatDate(o.dispatch_date)}</td>
                 </tr>
               ))}
               {filteredOrders.length === 0 && (

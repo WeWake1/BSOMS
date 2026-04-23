@@ -98,8 +98,8 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, 
 
       <div className="flex justify-between items-end border-t border-border pt-3 mt-1">
         <div className="flex-1">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Due Date</p>
-          <p className="text-sm font-semibold text-foreground">{formatDate(order.due_date)}</p>
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Date</p>
+          <p className="text-sm font-semibold text-foreground">{formatDate(order.date)}</p>
         </div>
         <div className="text-right">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Qty</p>
@@ -135,7 +135,10 @@ export function OrderListItem({ order, isAdmin, onStatusChange, onClick, classNa
           <span className="text-xs text-muted-foreground">{order.categories?.name || 'Uncategorized'}</span>
         </div>
       </td>
-      <td className="px-6 py-3.5 align-middle text-muted-foreground font-medium">
+      <td className="px-6 py-3.5 align-middle text-muted-foreground hidden sm:table-cell">
+        {formatDate(order.date)}
+      </td>
+      <td className="px-6 py-3.5 align-middle text-muted-foreground font-medium hidden sm:table-cell">
         {(order.length || order.width) ? `${formatInches(order.length)} × ${formatInches(order.width)}` : '—'}
       </td>
       <td className="px-6 py-3.5 align-middle text-right font-bold">
