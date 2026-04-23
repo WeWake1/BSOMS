@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { formatDate, cn } from '@/lib/utils';
+import { formatDate, formatInches, cn } from '@/lib/utils';
 import { getCategoryColor } from '@/lib/category-colors';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
@@ -67,7 +67,7 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, 
           </h3>
           {(order.length || order.width) && (
              <p className="text-xs text-muted-foreground mt-0.5 font-medium">
-               Size: {order.length || '-'} × {order.width || '-'}
+               Size: {formatInches(order.length)} × {formatInches(order.width)}
              </p>
           )}
         </div>
@@ -136,7 +136,7 @@ export function OrderListItem({ order, isAdmin, onStatusChange, onClick, classNa
         </div>
       </td>
       <td className="px-6 py-3.5 align-middle text-muted-foreground font-medium">
-        {(order.length || order.width) ? `${order.length||'-'}×${order.width||'-'}` : '-'}
+        {(order.length || order.width) ? `${formatInches(order.length)} × ${formatInches(order.width)}` : '—'}
       </td>
       <td className="px-6 py-3.5 align-middle text-right font-bold">
         {order.qty}

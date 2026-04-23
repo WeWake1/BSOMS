@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { OrderWithCategory } from '@/types/database';
-import { formatDate } from './utils';
+import { formatDate, formatInches } from './utils';
 
 export function generateOrderReportPDF(orders: OrderWithCategory[]) {
   // Create jsPDF instance in landscape mode
@@ -27,23 +27,28 @@ export function generateOrderReportPDF(orders: OrderWithCategory[]) {
   })}`;
   doc.text(dateStr, pageWidth - 14, 22, { align: 'right' });
 
-  // Map orders to autoTable rows
-  const tableData = orders.map(o => [
-    o.order_no,
-    o.customer_name,
-    o.categories?.name || 'Uncategorized',
-    o.status,
-    formatDate(o.date),
-    formatDate(o.due_date),
-    formatDate(o.dispatch_date),
-    o.qty.toString(),
-    o.description || '',
-  ]);
+  // Column order: Date | Category | Dimensions | Description | Qty | Order & Customer | Status | Due Date | Dispatch
+  const tableData = orders.map(o => {
+    const dims = (o.length || o.width)
+      ? `${formatInches(o.length)} × ${formatInches(o.width)}`
+      : '—';
+    return [
+      formatDate(o.date),
+      o.categories?.name || 'Uncategorized',
+      dims,
+      o.description || '',
+      o.qty.toString(),
+      `${o.order_no} – ${o.customer_name}`,
+      o.status,
+      formatDate(o.due_date),
+      formatDate(o.dispatch_date),
+    ];
+  });
 
   // Generate Table
   autoTable(doc, {
     startY: 30,
-    head: [['Order No', 'Customer Name', 'Category', 'Status', 'Date', 'Due Date', 'Dispatch', 'Qty', 'Description']],
+    head: [['Date', 'Category', 'Dimensions', 'Description', 'Qty', 'Order & Customer', 'Status', 'Due Date', 'Dispatch']],
     body: tableData,
     theme: 'grid',
     headStyles: {
@@ -57,15 +62,15 @@ export function generateOrderReportPDF(orders: OrderWithCategory[]) {
       cellPadding: 3,
     },
     columnStyles: {
-      0: { cellWidth: 25 }, // Order No
-      1: { cellWidth: 40 }, // Customer
-      2: { cellWidth: 25 }, // Category
-      3: { cellWidth: 25 }, // Status
-      4: { cellWidth: 22 }, // Date
-      5: { cellWidth: 22 }, // Due Date
-      6: { cellWidth: 22 }, // Dispatch
-      7: { cellWidth: 15, halign: 'center' }, // Qty
-      8: { cellWidth: 'auto' }, // Description (takes remaining space)
+      0: { cellWidth: 22 }, // Date
+      1: { cellWidth: 25 }, // Category
+      2: { cellWidth: 22 }, // Dimensions
+      3: { cellWidth: 'auto' }, // Description (takes remaining space)
+      4: { cellWidth: 12, halign: 'center' }, // Qty
+      5: { cellWidth: 50 }, // Order & Customer
+      6: { cellWidth: 25 }, // Status
+      7: { cellWidth: 22 }, // Due Date
+      8: { cellWidth: 22 }, // Dispatch
     },
     // Footer: Page Numbers
     didDrawPage: (data) => {

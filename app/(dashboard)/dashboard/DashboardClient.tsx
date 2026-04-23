@@ -13,7 +13,7 @@ import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
 import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
 import { generateOrderReportPDF } from '@/lib/pdf-export';
 import { createClient } from '@/lib/supabase/client';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatInches } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
@@ -392,7 +392,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         <div 
           ref={tableExportRef} 
           className="bg-white p-8"
-          style={{ width: '1200px' }}
+          style={{ width: '1400px' }}
         >
           {/* Header */}
           <div className="flex justify-between items-end border-b border-gray-200 pb-4 mb-6">
@@ -411,29 +411,31 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="bg-indigo-600 text-white">
-                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Order No</th>
-                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[18%]">Customer Name</th>
-                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[12%]">Category</th>
-                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[12%]">Status</th>
-                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Date</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[8%]">Date</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Category</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[9%]">Dimensions</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[18%]">Description</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 text-center w-[5%]">Qty</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[20%]">Order & Customer</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Status</th>
                 <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Due Date</th>
                 <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Dispatch</th>
-                <th className="py-3 px-4 font-semibold border border-indigo-700 text-center w-[6%]">Qty</th>
-                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[12%]">Description</th>
               </tr>
             </thead>
             <tbody>
               {filteredOrders.map((o, i) => (
                 <tr key={o.id} className={i % 2 === 0 ? "bg-white text-gray-800" : "bg-gray-50 text-gray-800"}>
-                  <td className="py-2.5 px-4 border border-gray-200">{o.order_no}</td>
-                  <td className="py-2.5 px-4 border border-gray-200">{o.customer_name}</td>
-                  <td className="py-2.5 px-4 border border-gray-200">{o.categories?.name || 'Uncategorized'}</td>
-                  <td className="py-2.5 px-4 border border-gray-200">{o.status}</td>
                   <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.date)}</td>
+                  <td className="py-2.5 px-4 border border-gray-200">{o.categories?.name || 'Uncategorized'}</td>
+                  <td className="py-2.5 px-4 border border-gray-200 font-medium">
+                    {(o.length || o.width) ? `${formatInches(o.length)} × ${formatInches(o.width)}` : '—'}
+                  </td>
+                  <td className="py-2.5 px-4 border border-gray-200 break-words">{o.description || ''}</td>
+                  <td className="py-2.5 px-4 border border-gray-200 text-center font-medium">{o.qty}</td>
+                  <td className="py-2.5 px-4 border border-gray-200 font-medium">{o.order_no} – {o.customer_name}</td>
+                  <td className="py-2.5 px-4 border border-gray-200">{o.status}</td>
                   <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.due_date)}</td>
                   <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.dispatch_date)}</td>
-                  <td className="py-2.5 px-4 border border-gray-200 text-center font-medium">{o.qty}</td>
-                  <td className="py-2.5 px-4 border border-gray-200 break-words">{o.description || ''}</td>
                 </tr>
               ))}
               {filteredOrders.length === 0 && (

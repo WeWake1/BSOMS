@@ -16,6 +16,17 @@ export function formatDate(date: string | null | undefined): string {
   });
 }
 
+/**
+ * Format a numeric inch value as: {whole_inches}"{tenths}
+ * e.g.  33.07 → '33"1',  14.96 → '14"9',  null → '-'
+ */
+export function formatInches(inches: number | null | undefined): string {
+  if (inches == null) return '-';
+  const whole  = Math.floor(inches);
+  const tenths = Math.round((inches - whole) * 10);
+  return `${whole}"${tenths}`;
+}
+
 export function getStatusColor(status: OrderStatus | string): string {
   const colors: Record<string, string> = {
     'Pending': 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-800',

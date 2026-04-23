@@ -326,8 +326,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         )}
 
         <div className="grid grid-cols-3 gap-4">
-          <Input label="Length" type="number" step="0.01" id="length" placeholder="cm" value={length} onChange={e => setLength(e.target.value)} />
-          <Input label="Width" type="number" step="0.01" id="width" placeholder="cm" value={width} onChange={e => setWidth(e.target.value)} />
+          <Input label="Length" type="number" step="0.01" id="length" placeholder="in" value={length} onChange={e => setLength(e.target.value)} />
+          <Input label="Width" type="number" step="0.01" id="width" placeholder="in" value={width} onChange={e => setWidth(e.target.value)} />
           <Input label="Qty" type="number" id="qty" min="1" value={qty} onChange={e => setQty(e.target.value)} required />
         </div>
 

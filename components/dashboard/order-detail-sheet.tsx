@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Drawer } from '@/components/ui/drawer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatInches } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import type { OrderWithCategoryAndItems } from '@/types/database';
 import toast from 'react-hot-toast';
@@ -172,7 +172,7 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
             <div className="bg-muted rounded-xl p-3 border border-border">
               <span className="block text-[11px] font-bold tracking-widest text-muted-foreground uppercase mb-1">Dimensions & Qty</span>
               <span className="block text-sm font-bold text-foreground">
-                {order.length && order.width ? `${order.length} × ${order.width} cm` : '—'}
+                {order.length && order.width ? `${formatInches(order.length)} × ${formatInches(order.width)}` : '—'}
                 <span className="mx-2 text-muted-foreground">|</span>
                 Qty: {order.qty}
               </span>
