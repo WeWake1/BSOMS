@@ -416,7 +416,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 <th className="py-3 px-4 font-semibold border border-indigo-700 w-[9%]">Dimensions</th>
                 <th className="py-3 px-4 font-semibold border border-indigo-700 w-[18%]">Description</th>
                 <th className="py-3 px-4 font-semibold border border-indigo-700 text-center w-[5%]">Qty</th>
-                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[20%]">Order & Customer</th>
+                <th className="py-3 px-4 font-semibold border border-indigo-700 w-[20%]">Order No &amp; Customer Name</th>
                 <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Status</th>
                 <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Due Date</th>
                 <th className="py-3 px-4 font-semibold border border-indigo-700 w-[10%]">Dispatch</th>

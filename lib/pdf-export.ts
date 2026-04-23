@@ -48,7 +48,7 @@ export function generateOrderReportPDF(orders: OrderWithCategory[]) {
   // Generate Table
   autoTable(doc, {
     startY: 30,
-    head: [['Date', 'Category', 'Dimensions', 'Description', 'Qty', 'Order & Customer', 'Status', 'Due Date', 'Dispatch']],
+    head: [['Date', 'Category', 'Dimensions', 'Description', 'Qty', 'Order No & Customer Name', 'Status', 'Due Date', 'Dispatch']],
     body: tableData,
     theme: 'grid',
     headStyles: {
@@ -64,7 +64,7 @@ export function generateOrderReportPDF(orders: OrderWithCategory[]) {
     columnStyles: {
       0: { cellWidth: 22 }, // Date
       1: { cellWidth: 25 }, // Category
-      2: { cellWidth: 22 }, // Dimensions
+      2: { cellWidth: 30 }, // Dimensions
       3: { cellWidth: 'auto' }, // Description (takes remaining space)
       4: { cellWidth: 12, halign: 'center' }, // Qty
       5: { cellWidth: 50 }, // Order & Customer

@@ -8,6 +8,19 @@ import { createClient } from '@/lib/supabase/client';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 import type { OrderWithCategoryAndItems, Category, OrderStatus } from '@/types/database';
 import toast from 'react-hot-toast';
+import { formatInches } from '@/lib/utils';
+
+/**
+ * Parse user-entered inch string to a stored decimal number.
+ * Accepts:  43"2  → 43.2   |   43  → 43.0   |   43.5 → 43.5
+ */
+function parseInchInput(val: string): number | null {
+  if (!val.trim()) return null;
+  const match = val.match(/^(\d+)"(\d)$/);
+  if (match) return parseFloat(`${match[1]}.${match[2]}`);
+  const num = parseFloat(val);
+  return isNaN(num) ? null : num;
+}
 
 function cn(...classes: (string | undefined | false | null)[]) {
   return classes.filter(Boolean).join(' ');
@@ -64,8 +77,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setDate(order.date);
         setDueDate(order.due_date);
         setDispatchDate(order.dispatch_date || '');
-        setLength(order.length?.toString() || '');
-        setWidth(order.width?.toString() || '');
+        setLength(order.length != null ? formatInches(order.length) : '');
+        setWidth(order.width != null ? formatInches(order.width) : '');
         setQty(order.qty.toString());
         setStatus(order.status);
         setDescription(order.description || '');
@@ -230,8 +243,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       date,
       due_date: dueDate,
       dispatch_date: status === 'Dispatched' ? (dispatchDate || null) : null,
-      length: length ? parseFloat(length) : null,
-      width: width ? parseFloat(width) : null,
+      length: parseInchInput(length),
+      width: parseInchInput(width),
       qty: parseInt(qty, 10),
       status,
       description: description || null,
@@ -326,8 +339,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         )}
 
         <div className="grid grid-cols-3 gap-4">
-          <Input label="Length" type="number" step="0.01" id="length" placeholder="in" value={length} onChange={e => setLength(e.target.value)} />
-          <Input label="Width" type="number" step="0.01" id="width" placeholder="in" value={width} onChange={e => setWidth(e.target.value)} />
+          <Input label="Length" type="text" inputMode="decimal" id="length" placeholder='e.g. 33"1' value={length} onChange={e => setLength(e.target.value)} />
+          <Input label="Width" type="text" inputMode="decimal" id="width" placeholder='e.g. 14"9' value={width} onChange={e => setWidth(e.target.value)} />
           <Input label="Qty" type="number" id="qty" min="1" value={qty} onChange={e => setQty(e.target.value)} required />
         </div>
 
