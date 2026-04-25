@@ -15,8 +15,8 @@ export interface Order {
   date: string;
   due_date: string;
   dispatch_date: string | null;
-  length: number | null;
-  width: number | null;
+  length: string | null;
+  width: string | null;
   qty: number;
   description: string | null;
   photo_url: string | null;

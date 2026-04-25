@@ -17,14 +17,12 @@ export function formatDate(date: string | null | undefined): string {
 }
 
 /**
- * Format a numeric inch value as: {whole_inches}"{tenths}
- * e.g.  33.07 → '33"1',  14.96 → '14"9',  null → '-'
+ * Dimensions are stored as raw text (e.g. '43"2', '80', '74.6').
+ * Just pass through as-is; return '—' for empty values.
  */
-export function formatInches(inches: number | null | undefined): string {
-  if (inches == null) return '-';
-  const whole  = Math.floor(inches);
-  const tenths = Math.round((inches - whole) * 10);
-  return `${whole}"${tenths}`;
+export function formatInches(val: string | number | null | undefined): string {
+  if (val == null || val === '') return '—';
+  return String(val);
 }
 
 export function getStatusColor(status: OrderStatus | string): string {

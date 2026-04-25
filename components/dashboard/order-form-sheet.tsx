@@ -11,15 +11,12 @@ import toast from 'react-hot-toast';
 import { formatInches } from '@/lib/utils';
 
 /**
- * Parse user-entered inch string to a stored decimal number.
- * Accepts:  43"2  → 43.2   |   43  → 43.0   |   43.5 → 43.5
+ * Dimensions are stored as raw text — just trim and return as-is.
+ * e.g. '43"2' → '43"2',  '80' → '80',  '' → null
  */
-function parseInchInput(val: string): number | null {
-  if (!val.trim()) return null;
-  const match = val.match(/^(\d+)"(\d)$/);
-  if (match) return parseFloat(`${match[1]}.${match[2]}`);
-  const num = parseFloat(val);
-  return isNaN(num) ? null : num;
+function parseInchInput(val: string): string | null {
+  const trimmed = val.trim();
+  return trimmed || null;
 }
 
 function cn(...classes: (string | undefined | false | null)[]) {
@@ -77,8 +74,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setDate(order.date);
         setDueDate(order.due_date);
         setDispatchDate(order.dispatch_date || '');
-        setLength(order.length != null ? formatInches(order.length) : '');
-        setWidth(order.width != null ? formatInches(order.width) : '');
+        setLength(order.length ?? '');
+        setWidth(order.width ?? '');
         setQty(order.qty.toString());
         setStatus(order.status);
         setDescription(order.description || '');
