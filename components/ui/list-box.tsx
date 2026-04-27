@@ -49,15 +49,17 @@ const ListBoxItem = <T extends object>({
       }
       className={composeRenderProps(className, (className) =>
         cn(
-          "relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none",
+          // Base: always reserve 32px left for checkmark so text never shifts
+          "relative flex w-full cursor-default select-none items-center gap-2 pl-8 pr-3 py-2.5 text-sm font-medium outline-none rounded-lg",
+          // Separator between items via border-bottom (except last)
+          "border-b border-border/40 last:border-b-0",
           /* Disabled */
           "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-          /* Focused */
-          "data-[focused]:bg-accent data-[focused]:text-accent-foreground",
-          /* Hovered */
-          "data-[hovered]:bg-accent data-[hovered]:text-accent-foreground",
-          /* Selection */
-          "data-[selection-mode]:pl-8",
+          /* Focused / Hovered — use brand tint */
+          "data-[focused]:bg-primary/8 data-[focused]:text-primary",
+          "data-[hovered]:bg-muted data-[hovered]:text-foreground",
+          /* Selected item gets a stronger tint */
+          "data-[selected]:bg-primary/10 data-[selected]:text-primary",
           className
         )
       )}
@@ -65,12 +67,13 @@ const ListBoxItem = <T extends object>({
     >
       {composeRenderProps(children, (children, renderProps) => (
         <>
-          {renderProps.isSelected && (
-            <span className="absolute left-2 flex size-4 items-center justify-center">
-              <Check className="size-4" />
-            </span>
-          )}
-          {children}
+          {/* Checkmark slot — always present to prevent layout shift */}
+          <span className="absolute left-2.5 flex size-4 items-center justify-center shrink-0">
+            {renderProps.isSelected && (
+              <Check className="size-3.5 text-primary" strokeWidth={2.5} />
+            )}
+          </span>
+          <span className="flex-1 leading-snug">{children}</span>
         </>
       ))}
     </AriaListBoxItem>

@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { formatDate, formatInches, cn } from '@/lib/utils';
 import { getCategoryColor } from '@/lib/category-colors';
@@ -9,13 +11,27 @@ interface OrderCardProps {
   isAdmin?: boolean;
   onStatusChange?: (status: OrderStatus) => void;
   onClick?: () => void;
+  onLongPress?: () => void;
   className?: string;
   isNew?: boolean;
   isFlash?: boolean;
+  // Multi-select
+  isSelectMode?: boolean;
+  isSelected?: boolean;
 }
 
-export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, isNew, isFlash }: OrderCardProps) {
+export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress, className, isNew, isFlash, isSelectMode, isSelected }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
+
+  // Long-press to enter select mode
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handlePointerDown = () => {
+    if (!onLongPress) return;
+    longPressTimer.current = setTimeout(() => { onLongPress(); }, 500);
+  };
+  const handlePointerUp = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
 
   const statusBorderClass = {
     'Pending':     'status-border-pending',
@@ -38,12 +54,36 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, 
         statusBorderClass,
         isNew && 'animate-new-order',
         isFlash && 'animate-card-flash',
+        // Jiggle when in multi-select mode
+        isSelectMode && 'animate-jiggle',
+        // Selection ring
+        isSelected && 'ring-2 ring-primary ring-offset-2 border-primary/40',
         className
       )}
       style={isFlash ? { '--flash-color': flashColor } as any : {}}
       onClick={onClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onContextMenu={e => { if (onLongPress) e.preventDefault(); }}
     >
-      <div className="flex justify-between items-start gap-4">
+      {/* iOS-style selection checkmark */}
+      {isSelectMode && (
+        <div className={cn(
+          "absolute top-2 left-2 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-150 z-10",
+          isSelected
+            ? "bg-primary border-primary"
+            : "bg-card border-muted-foreground/40"
+        )}>
+          {isSelected && (
+            <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+      )}
+
+      <div className={cn("flex justify-between items-start gap-4", isSelectMode && "pl-5")}>
         <div>
           <div className="flex items-center gap-2 mb-1.5">
             <span
@@ -71,8 +111,8 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, 
              </p>
           )}
         </div>
-        <div className="relative shrink-0 mt-0.5" onClick={(e) => isAdmin ? e.preventDefault() : null}>
-          {isAdmin && onStatusChange ? (
+        <div className="relative shrink-0 mt-0.5" onClick={(e) => isAdmin && !isSelectMode ? e.preventDefault() : null}>
+          {isAdmin && onStatusChange && !isSelectMode ? (
             <Select
               selectedKey={order.status}
               onSelectionChange={(k) => onStatusChange(k as any)}
@@ -101,6 +141,41 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, className, 
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Date</p>
           <p className="text-sm font-semibold text-foreground">{formatDate(order.date)}</p>
         </div>
+
+        {/* Attachment Indicators — PNG icons */}
+        {(order.photo_url || order.audio_url) && (
+          <div className="flex items-center gap-1.5 mr-2 self-center mt-3">
+            {order.photo_url && (
+              <span
+                title="Has photo attached"
+                className="flex items-center justify-center w-6 h-6 rounded-full bg-muted border border-border"
+              >
+                <Image
+                  src="/icons/attached_image.png"
+                  alt="Photo attached"
+                  width={14}
+                  height={14}
+                  className="object-contain"
+                />
+              </span>
+            )}
+            {order.audio_url && (
+              <span
+                title="Has voice note attached"
+                className="flex items-center justify-center w-6 h-6 rounded-full bg-muted border border-border"
+              >
+                <Image
+                  src="/icons/attached_voicenote.png"
+                  alt="Voice note attached"
+                  width={14}
+                  height={14}
+                  className="object-contain"
+                />
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="text-right">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Qty</p>
           <div className="flex items-center gap-1.5 px-3 py-1 bg-primary/10 [color:var(--primary)] rounded-full font-bold text-sm transition-transform duration-150 group-hover:scale-105">
@@ -143,6 +218,21 @@ export function OrderListItem({ order, isAdmin, onStatusChange, onClick, classNa
       </td>
       <td className="px-6 py-3.5 align-middle text-right font-bold">
         {order.qty}
+      </td>
+      {/* Attachment indicators in list view */}
+      <td className="px-3 py-3.5 align-middle">
+        <div className="flex items-center gap-1">
+          {order.photo_url && (
+            <span title="Has photo" className="flex items-center justify-center w-5 h-5 rounded-full bg-muted border border-border">
+              <Image src="/icons/attached_image.png" alt="Photo" width={11} height={11} className="object-contain" />
+            </span>
+          )}
+          {order.audio_url && (
+            <span title="Has voice note" className="flex items-center justify-center w-5 h-5 rounded-full bg-muted border border-border">
+              <Image src="/icons/attached_voicenote.png" alt="Voice" width={11} height={11} className="object-contain" />
+            </span>
+          )}
+        </div>
       </td>
       <td className="px-6 py-3.5 align-middle text-center w-[120px]">
         <div className="relative inline-block" onClick={(e) => isAdmin ? e.stopPropagation() : null}>

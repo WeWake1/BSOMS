@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import { toPng } from 'html-to-image';
 import { useOrders } from '@/hooks/useOrders';
@@ -10,10 +10,11 @@ import { OrderCard, OrderListItem } from '@/components/dashboard/order-card';
 import { Button } from '@/components/ui/button';
 import { OrderDetailSheet } from '@/components/dashboard/order-detail-sheet';
 import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
+import { BulkOrderSheet } from '@/components/dashboard/bulk-order-sheet';
 import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
 import { generateOrderReportPDF } from '@/lib/pdf-export';
 import { createClient } from '@/lib/supabase/client';
-import { formatDate, formatInches } from '@/lib/utils';
+import { formatDate, formatInches, cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
@@ -29,14 +30,92 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'order-asc'>('date-desc');
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [dispatchPromptOrder, setDispatchPromptOrder] = useState<string | null>(null);
   const [dispatchPromptDate, setDispatchPromptDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // ── Multi-select (iOS jiggle) state ──────────────────────────────────────
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('Pending');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+
+  // ── FAB long-press state ─────────────────────────────────────────────────
+  const [showFabMenu, setShowFabMenu] = useState(false);
+  const fabLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
 
   const activeOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
 
   const isAdmin = user.profile.role === 'admin';
   const [supabase] = useState(() => createClient());
+
+  // ── Multi-select helpers ─────────────────────────────────────────────────
+  const enterSelectMode = useCallback(() => {
+    setIsSelectMode(true);
+    setSelectedIds(new Set());
+  }, []);
+
+  const exitSelectMode = useCallback(() => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // Close FAB menu on outside click
+  useEffect(() => {
+    if (!showFabMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (fabRef.current && !fabRef.current.closest('.fab-area')?.contains(e.target as Node)) {
+        setShowFabMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showFabMenu]);
+
+  // ── FAB long-press handlers ──────────────────────────────────────────────
+  const handleFabPointerDown = () => {
+    fabLongPressTimer.current = setTimeout(() => {
+      setShowFabMenu(true);
+    }, 500);
+  };
+  const handleFabPointerUp = () => {
+    if (fabLongPressTimer.current) clearTimeout(fabLongPressTimer.current);
+  };
+
+  // ── Bulk status update ───────────────────────────────────────────────────
+  const handleBulkStatusChange = async () => {
+    if (selectedIds.size === 0) return;
+    setIsBulkUpdating(true);
+    const ids = Array.from(selectedIds);
+    try {
+      const { error } = await (supabase.from('orders') as any)
+        .update({ status: bulkStatus, dispatch_date: bulkStatus === 'Dispatched' ? new Date().toISOString().split('T')[0] : null })
+        .in('id', ids);
+      if (error) throw error;
+      toast.success(`${ids.length} order${ids.length > 1 ? 's' : ''} moved to ${bulkStatus}`);
+      exitSelectMode();
+    } catch {
+      toast.error("Couldn't update orders. Please try again.");
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  // ── All unique customer names for autocomplete ───────────────────────────
+  const allCustomerNames = useMemo(() => {
+    const seen = new Set<string>();
+    return orders.filter(o => { const n = o.customer_name; if (seen.has(n)) return false; seen.add(n); return true; }).map(o => o.customer_name);
+  }, [orders]);
 
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     if (newStatus === 'Dispatched') {
@@ -112,9 +191,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   };
 
   const counts = useMemo(() => {
-    const c = { 'Pending': 0, 'In Progress': 0, 'Packing': 0, 'Dispatched': 0 } as Record<string, number>;
+    const c: Record<string, number> = { 'Pending': 0, 'In Progress': 0, 'Packing': 0, 'Dispatched': 0 };
     for (const o of orders) c[o.status] = (c[o.status] || 0) + 1;
-    return c;
+    return c as any;
   }, [orders]);
 
 
@@ -253,6 +332,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         setSortBy={setSortBy}
         viewMode={viewMode}
         setViewMode={setViewMode}
+        allCustomerNames={allCustomerNames}
       />
 
 
@@ -276,14 +356,18 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 onStatusChange={(status) => handleStatusChange(order.id, status)}
                 isNew={newIds.has(order.id)}
                 isFlash={flashIds.has(order.id)}
+                isSelectMode={isSelectMode}
+                isSelected={selectedIds.has(order.id)}
                 onClick={() => {
+                  if (isSelectMode) { toggleSelect(order.id); return; }
                   const openDetail = () => flushSync(() => setSelectedOrderId(order.id));
                   if (typeof document !== 'undefined' && 'startViewTransition' in document) {
                     (document as any).startViewTransition(openDetail);
                   } else {
                     openDetail();
                   }
-                }} 
+                }}
+                onLongPress={isAdmin ? enterSelectMode : undefined}
               />
             ))
           ) : (
@@ -328,16 +412,78 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         ) : null}
       </div>
 
-      {/* FAB (Admin Only) — fixed to viewport, always bottom-right */}
-      {isAdmin && (
-        <button
-          className="fixed bottom-6 right-6 bg-primary text-primary-foreground w-14 h-14 rounded-full flex items-center justify-center shadow-[0_4px_20px_-2px_var(--primary)] hover:shadow-[0_8px_32px_-4px_var(--primary)] hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring z-40 min-tap"
-          onClick={() => { setSelectedOrderId(null); setIsFormOpen(true); }}
-          aria-label="Add Order"
-        >
-        <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span className="sr-only">Add Order</span>
-      </button>
+      {/* Multi-select action bar */}
+      {isSelectMode && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-200">
+          <button onClick={exitSelectMode} className="text-sm font-bold text-primary hover:text-primary/80 px-3 py-2 rounded-xl hover:bg-primary/10 transition-colors whitespace-nowrap">
+            Done
+          </button>
+          <span className="text-sm font-semibold text-muted-foreground whitespace-nowrap">
+            {selectedIds.size} selected
+          </span>
+          <div className="flex-1" />
+          {selectedIds.size > 0 && (
+            <>
+              <select
+                value={bulkStatus}
+                onChange={e => setBulkStatus(e.target.value as OrderStatus)}
+                className="h-9 px-2 rounded-xl border border-border bg-background text-sm font-semibold text-foreground outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="Pending">Pending</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Packing">Packing</option>
+                <option value="Dispatched">Dispatched</option>
+              </select>
+              <Button size="sm" onClick={handleBulkStatusChange} loading={isBulkUpdating} loadingText="Updating…" className="h-9">
+                Move to Status
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* FAB (Admin Only) — long-press for menu, tap for single add */}
+      {isAdmin && !isSelectMode && (
+        <div className="fab-area fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+          {/* FAB menu */}
+          {showFabMenu && (
+            <div className="flex flex-col gap-1.5 items-end animate-in fade-in zoom-in-95 duration-150">
+              <button
+                onClick={() => { setShowFabMenu(false); setSelectedOrderId(null); setIsFormOpen(true); }}
+                className="flex items-center gap-2.5 bg-card text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors"
+              >
+                <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Single Order
+              </button>
+              <button
+                onClick={() => { setShowFabMenu(false); setIsBulkOpen(true); }}
+                className="flex items-center gap-2.5 bg-card text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors"
+              >
+                <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                Add Multiple Orders
+              </button>
+            </div>
+          )}
+          <button
+            ref={fabRef}
+            className={cn(
+              "bg-primary text-primary-foreground w-14 h-14 rounded-full flex items-center justify-center shadow-[0_4px_20px_-2px_var(--primary)] hover:shadow-[0_8px_32px_-4px_var(--primary)] hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring min-tap",
+              showFabMenu && "rotate-45"
+            )}
+            onClick={() => {
+              if (showFabMenu) { setShowFabMenu(false); return; }
+              setSelectedOrderId(null); setIsFormOpen(true);
+            }}
+            onPointerDown={handleFabPointerDown}
+            onPointerUp={handleFabPointerUp}
+            onPointerLeave={handleFabPointerUp}
+            onContextMenu={e => { e.preventDefault(); setShowFabMenu(true); }}
+            aria-label="Add Order"
+          >
+            <svg className="w-6 h-6 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span className="sr-only">Add Order</span>
+          </button>
+        </div>
       )}
 
       <OrderDetailSheet 
@@ -353,6 +499,12 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         categories={categories}
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); setSelectedOrderId(null); }}
+      />
+
+      <BulkOrderSheet
+        isOpen={isBulkOpen}
+        onClose={() => setIsBulkOpen(false)}
+        categories={categories}
       />
 
       <SettingsDrawer

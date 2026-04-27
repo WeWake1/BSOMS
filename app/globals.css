@@ -164,6 +164,17 @@ body {
   .animate-shake {
     animation: shake 400ms var(--ease-out-quart);
   }
+  /* iOS-style jiggle for multi-select mode */
+  .animate-jiggle {
+    animation: jiggle 0.22s ease-in-out infinite alternate;
+    transform-origin: center;
+  }
+  /* Active filter highlight */
+  .filter-active {
+    border-color: var(--primary) !important;
+    background-color: oklch(from var(--primary) l c h / 0.08) !important;
+    color: var(--primary) !important;
+  }
   .animate-spin-in {
     animation: spin-in var(--duration-enter, 280ms) var(--ease-out-expo) both;
   }
@@ -220,6 +231,11 @@ body {
   40%       { transform: translateX(6px);  }
   60%       { transform: translateX(-4px); }
   80%       { transform: translateX(4px);  }
+}
+
+@keyframes jiggle {
+  0%   { transform: rotate(-1.8deg) scale(1.01); }
+  100% { transform: rotate(1.8deg)  scale(1.01); }
 }
 
 @keyframes spin-in {
