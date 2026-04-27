@@ -8,6 +8,7 @@ import { StatusCards } from '@/components/dashboard/status-cards';
 import { FilterBar } from '@/components/dashboard/filter-bar';
 import { OrderCard, OrderListItem } from '@/components/dashboard/order-card';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { OrderDetailSheet } from '@/components/dashboard/order-detail-sheet';
 import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
 import { BulkOrderSheet } from '@/components/dashboard/bulk-order-sheet';
@@ -40,6 +41,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = useState<OrderStatus>('Pending');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // ── FAB long-press state ─────────────────────────────────────────────────
   const [showFabMenu, setShowFabMenu] = useState(false);
@@ -110,6 +112,55 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       setIsBulkUpdating(false);
     }
   };
+
+  // ── Bulk delete ──────────────────────────────────────────────────────────
+  // Opens the confirm dialog
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    setDeleteConfirmOpen(true);
+  };
+
+  // Called when user confirms deletion in the dialog
+  const confirmBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    setIsBulkUpdating(true);
+    try {
+      const { error } = await supabase.from('orders').delete().in('id', ids);
+      if (error) {
+        console.error('Bulk delete error:', error);
+        throw error;
+      }
+      toast.success(`${ids.length} order${ids.length > 1 ? 's' : ''} deleted`);
+      setDeleteConfirmOpen(false);
+      exitSelectMode();
+    } catch (err: any) {
+      console.error('Delete failed:', err);
+      toast.error(err?.message || "Couldn't delete orders. Please try again.");
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
+  // ── Click-outside to exit select mode ────────────────────────────────────
+  const orderListRef = useRef<HTMLDivElement>(null);
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isSelectMode) return;
+    const handler = (e: PointerEvent) => {
+      const target = e.target as Node;
+      // Stay in select mode if click is inside the order list OR the action bar
+      // (action bar is position:fixed so it's outside orderListRef in the DOM)
+      const insideList = orderListRef.current?.contains(target);
+      const insideBar  = actionBarRef.current?.contains(target);
+      // Also ignore clicks that land inside any open dialog/portal
+      const insideDialog = (target as Element)?.closest?.('[role="dialog"]');
+      if (!insideList && !insideBar && !insideDialog) {
+        exitSelectMode();
+      }
+    };
+    document.addEventListener('pointerdown', handler);
+    return () => document.removeEventListener('pointerdown', handler);
+  }, [isSelectMode, exitSelectMode]);
 
   // ── All unique customer names for autocomplete ───────────────────────────
   const allCustomerNames = useMemo(() => {
@@ -339,7 +390,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       {/* H4: Mobile export row removed — now in top bar */}
 
       {/* Orders List */}
-      <div className={viewMode === 'card' ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-4 flex flex-col gap-0 rounded-2xl border border-border bg-card overflow-hidden shadow-sm"}>
+      <div ref={orderListRef} className={viewMode === 'card' ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-4 flex flex-col gap-0 rounded-2xl border border-border bg-card overflow-hidden shadow-sm"}>
         {/* H1: role=status + aria-label on main loading spinner */}
         {loading && orders.length === 0 ? (
           <div role="status" aria-label="Loading orders" className="py-16 text-center text-sm font-medium text-muted-foreground flex flex-col items-center gap-3">
@@ -358,6 +409,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 isFlash={flashIds.has(order.id)}
                 isSelectMode={isSelectMode}
                 isSelected={selectedIds.has(order.id)}
+                isDetailOpen={selectedOrderId === order.id}
                 onClick={() => {
                   if (isSelectMode) { toggleSelect(order.id); return; }
                   const openDetail = () => flushSync(() => setSelectedOrderId(order.id));
@@ -414,7 +466,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
       {/* Multi-select action bar */}
       {isSelectMode && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-200">
+        <div ref={actionBarRef} className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-200">
           <button onClick={exitSelectMode} className="text-sm font-bold text-primary hover:text-primary/80 px-3 py-2 rounded-xl hover:bg-primary/10 transition-colors whitespace-nowrap">
             Done
           </button>
@@ -424,6 +476,17 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <div className="flex-1" />
           {selectedIds.size > 0 && (
             <>
+              {/* Delete button */}
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkUpdating}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-destructive/40 text-destructive text-sm font-semibold hover:bg-destructive/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                </svg>
+                Delete
+              </button>
               <select
                 value={bulkStatus}
                 onChange={e => setBulkStatus(e.target.value as OrderStatus)}
@@ -512,6 +575,18 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         onClose={() => setIsSettingsOpen(false)}
         user={user}
         categories={categories}
+      />
+
+      {/* Bulk Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={deleteConfirmOpen}
+        title={`Delete ${selectedIds.size} order${selectedIds.size !== 1 ? 's' : ''}?`}
+        message="This action cannot be undone. The selected orders will be permanently removed."
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        loading={isBulkUpdating}
+        onConfirm={confirmBulkDelete}
+        onCancel={() => setDeleteConfirmOpen(false)}
       />
 
       {/* Dispatch Date Modal */}

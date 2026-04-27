@@ -15,12 +15,14 @@ interface OrderCardProps {
   className?: string;
   isNew?: boolean;
   isFlash?: boolean;
-  // Multi-select
   isSelectMode?: boolean;
   isSelected?: boolean;
+  // When the detail sheet for THIS order is open, suppress the shared
+  // viewTransitionName to avoid InvalidStateError (two elements same name)
+  isDetailOpen?: boolean;
 }
 
-export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress, className, isNew, isFlash, isSelectMode, isSelected }: OrderCardProps) {
+export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress, className, isNew, isFlash, isSelectMode, isSelected, isDetailOpen }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
 
   // Long-press to enter select mode
@@ -88,7 +90,7 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress
           <div className="flex items-center gap-2 mb-1.5">
             <span
               className="text-[17px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors"
-              style={{ viewTransitionName: `order-num-${order.id}` } as any}
+              style={!isDetailOpen ? { viewTransitionName: `order-num-${order.id}` } as any : {}}
             >
               {order.order_no}
             </span>
