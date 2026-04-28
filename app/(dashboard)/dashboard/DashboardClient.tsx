@@ -430,8 +430,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                     {/* M8: scope=col on all th elements */}
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold w-[130px]">Order #</th>
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold">Customer</th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 font-semibold hidden sm:table-cell">Date</th>
-                    <th scope="col" className="px-3 sm:px-6 py-3 font-semibold hidden sm:table-cell">Size</th>
+                    <th scope="col" className="px-2 sm:px-6 py-3 font-semibold text-[11px] sm:text-sm whitespace-nowrap">Date</th>
+                    <th scope="col" className="px-2 sm:px-6 py-3 font-semibold text-[11px] sm:text-sm whitespace-nowrap">Size</th>
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold text-right">Qty</th>
                     <th scope="col" className="px-3 sm:px-6 py-3 font-semibold text-center">Status</th>
                   </tr>
@@ -661,7 +661,16 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   <td className="py-2.5 px-4 border border-gray-200 break-words">{o.description || ''}</td>
                   <td className="py-2.5 px-4 border border-gray-200 text-center font-medium">{o.qty}</td>
                   <td className="py-2.5 px-4 border border-gray-200 font-medium">{o.order_no} – {o.customer_name}</td>
-                  <td className="py-2.5 px-4 border border-gray-200">{o.status}</td>
+                  <td className="py-2.5 px-4 border border-gray-200 font-bold text-center" style={{
+                    backgroundColor: {
+                      'Pending': '#FEF3C7', 'In Progress': '#DBEAFE',
+                      'Packing': '#EDE9FE', 'Dispatched': '#DCFCE7'
+                    }[o.status] || '#F9FAFB',
+                    color: {
+                      'Pending': '#92400E', 'In Progress': '#1E40AF',
+                      'Packing': '#5B21B6', 'Dispatched': '#166534'
+                    }[o.status] || '#374151'
+                  }}>{o.status}</td>
                   <td className="py-2.5 px-4 border border-gray-200">{formatDate(o.due_date)}</td>
                   <td className="py-2.5 px-4 border border-gray-200 text-center">{formatDate(o.dispatch_date)}</td>
                 </tr>

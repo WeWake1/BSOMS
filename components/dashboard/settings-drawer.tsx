@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Drawer } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,7 +95,53 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
     }
   };
 
-  const handleSignOut = async () => { await signOut(); };
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  // ── PWA Install prompt ──────────────────────────────────────────────────
+  const deferredPrompt = useRef<any>(null);
+  const [canInstall, setCanInstall] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false);
+  const [installDone, setInstallDone] = useState(false);
+
+  // Detect if already installed as PWA
+  const isStandalone =
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true);
+
+  // iOS detection (no beforeinstallprompt — needs manual Add to Home Screen)
+  const isIOS =
+    typeof navigator !== 'undefined' &&
+    /iphone|ipad|ipod/i.test(navigator.userAgent) &&
+    !(window as any).MSStream;
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      deferredPrompt.current = e;
+      setCanInstall(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt.current) return;
+    setIsInstalling(true);
+    deferredPrompt.current.prompt();
+    const { outcome } = await deferredPrompt.current.userChoice;
+    if (outcome === 'accepted') {
+      setInstallDone(true);
+      setCanInstall(false);
+    }
+    deferredPrompt.current = null;
+    setIsInstalling(false);
+  };
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    await signOut();
+  };
 
   const startEdit = (cat: Category) => {
     setEditingId(cat.id);
@@ -168,7 +214,23 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
               {user.profile.role}
             </span>
           </div>
-          <Button variant="secondary" size="sm" onClick={handleSignOut} className="h-8 text-xs px-3 shrink-0">Sign Out</Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleSignOut}
+            disabled={isSigningOut}
+            className="h-8 text-xs px-3 shrink-0 hover:bg-destructive hover:text-white active:scale-95 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isSigningOut ? (
+              <span className="flex items-center gap-1.5">
+                <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Signing out…
+              </span>
+            ) : 'Sign Out'}
+          </Button>
         </div>
 
         {/* ── Dark Mode ────────────────────────────── */}
@@ -194,6 +256,57 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
             </button>
           </div>
         </div>
+
+        {/* ── Install App ──────────────────────────── */}
+        {!isStandalone && (
+          <div className="py-4 border-b border-border">
+            <div className="flex items-center justify-between min-tap">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-foreground">
+                  <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                    <line x1="12" y1="18" x2="12.01" y2="18"/>
+                  </svg>
+                </div>
+                <div>
+                  <span className="font-medium text-foreground block">Install App</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isIOS ? 'Add to Home Screen via Safari' : 'Add to your home screen'}
+                  </span>
+                </div>
+              </div>
+              {canInstall && !isIOS && (
+                <button
+                  type="button"
+                  onClick={handleInstall}
+                  disabled={isInstalling || installDone}
+                  className="h-8 px-3 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-60 shrink-0"
+                >
+                  {installDone ? '✓ Installed' : isInstalling ? 'Installing…' : 'Install'}
+                </button>
+              )}
+              {installDone && !canInstall && (
+                <span className="text-xs font-bold text-green-600 shrink-0">✓ Installed</span>
+              )}
+            </div>
+            {isIOS && (
+              <div className="mt-3 bg-muted/60 rounded-xl p-3 text-xs text-muted-foreground leading-relaxed">
+                <p className="font-semibold text-foreground mb-1">How to install on iPhone/iPad:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Open this page in <strong>Safari</strong></li>
+                  <li>Tap the <strong>Share</strong> button <span className="font-mono">(↑)</span> at the bottom</li>
+                  <li>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></li>
+                  <li>Tap <strong>&quot;Add&quot;</strong> — done!</li>
+                </ol>
+              </div>
+            )}
+            {!isIOS && !canInstall && !installDone && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Tap the browser menu → <strong>Add to Home Screen</strong> or <strong>Install App</strong>.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ── Manage Categories (Admin only) ─────── */}
         {isAdmin && (

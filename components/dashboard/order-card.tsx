@@ -212,10 +212,10 @@ export function OrderListItem({ order, isAdmin, onStatusChange, onClick, classNa
           <span className="text-xs text-muted-foreground">{order.categories?.name || 'Uncategorized'}</span>
         </div>
       </td>
-      <td className="px-6 py-3.5 align-middle text-muted-foreground hidden sm:table-cell">
+      <td className="px-2 sm:px-6 py-3.5 align-middle text-muted-foreground text-[11px] sm:text-sm whitespace-nowrap">
         {formatDate(order.date)}
       </td>
-      <td className="px-6 py-3.5 align-middle text-muted-foreground font-medium hidden sm:table-cell">
+      <td className="px-2 sm:px-6 py-3.5 align-middle text-muted-foreground font-medium text-[11px] sm:text-sm whitespace-nowrap">
         {(order.length || order.width) ? `${formatInches(order.length)} × ${formatInches(order.width)}` : '—'}
       </td>
       <td className="px-6 py-3.5 align-middle text-right font-bold">

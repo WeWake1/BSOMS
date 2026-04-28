@@ -45,6 +45,14 @@ export function generateOrderReportPDF(orders: OrderWithCategory[]) {
     ];
   });
 
+  // Status → printable color mapping [bg RGB, text RGB]
+  const STATUS_COLORS: Record<string, { fill: [number, number, number]; text: [number, number, number] }> = {
+    'Pending':     { fill: [254, 243, 199], text: [146,  64,  14] }, // amber-100 / amber-800
+    'In Progress': { fill: [219, 234, 254], text: [ 30,  64, 175] }, // blue-100  / blue-800
+    'Packing':     { fill: [237, 233, 254], text: [ 91,  33, 182] }, // violet-100/ violet-800
+    'Dispatched':  { fill: [220, 252, 231], text: [ 22, 101,  52] }, // green-100 / green-800
+  };
+
   // Generate Table
   autoTable(doc, {
     startY: 30,
@@ -68,9 +76,20 @@ export function generateOrderReportPDF(orders: OrderWithCategory[]) {
       3: { cellWidth: 'auto' }, // Description (takes remaining space)
       4: { cellWidth: 12, halign: 'center' }, // Qty
       5: { cellWidth: 50 }, // Order & Customer
-      6: { cellWidth: 25 }, // Status
+      6: { cellWidth: 25, fontStyle: 'bold' }, // Status
       7: { cellWidth: 22 }, // Due Date
       8: { cellWidth: 22, halign: 'center' }, // Dispatch
+    },
+    // Color-code the Status column (index 6) per row
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 6) {
+        const statusText = String(data.cell.raw || '');
+        const colors = STATUS_COLORS[statusText];
+        if (colors) {
+          data.cell.styles.fillColor = colors.fill;
+          data.cell.styles.textColor = colors.text;
+        }
+      }
     },
     // Footer: Page Numbers
     didDrawPage: (data) => {
