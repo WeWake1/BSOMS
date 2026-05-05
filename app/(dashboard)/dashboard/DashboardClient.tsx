@@ -13,6 +13,7 @@ import { OrderDetailSheet } from '@/components/dashboard/order-detail-sheet';
 import { OrderFormSheet } from '@/components/dashboard/order-form-sheet';
 import { BulkOrderSheet } from '@/components/dashboard/bulk-order-sheet';
 import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
+import { ChatPanel } from '@/components/dashboard/chat-panel';
 import { generateOrderReportPDF } from '@/lib/pdf-export';
 import { createClient } from '@/lib/supabase/client';
 import { formatDate, formatInches, cn } from '@/lib/utils';
@@ -611,6 +612,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           </div>
         </div>
       )}
+
+      {/* AI Chat Panel (FAB + sliding panel, accessible to all roles) */}
+      <ChatPanel />
 
       {/* Off-screen Image Export Container */}
       <div 
