@@ -17,6 +17,12 @@ type HistoryItem = { role: 'user' | 'assistant'; content: string };
 
 type VoiceState = 'idle' | 'connecting' | 'active' | 'stopping';
 
+// Worklet → main-thread message envelope (matches /public/audio-worklet-processor.js)
+type WorkletMessage =
+  | { type: 'audio'; data: ArrayBuffer; peak: number }
+  | { type: 'level'; peak: number }
+  | { type: 'init'; inputRate: number };
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function uid(): string {
@@ -40,15 +46,21 @@ function base64ToFloat32(base64: string): Float32Array {
 }
 
 // Play a PCM chunk (24 kHz mono Int16, base64-encoded) through the AudioContext.
-function playPCMChunk(base64: string, ctx: AudioContext) {
-  const f32 = base64ToFloat32(base64);
-  if (!f32.length) return;
-  const buf = ctx.createBuffer(1, f32.length, 24000);
-  buf.getChannelData(0).set(f32);
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  src.connect(ctx.destination);
-  src.start();
+// Schedules each chunk after the previous one so playback is gap-free.
+function makePlayer(ctx: AudioContext) {
+  let nextStart = 0;
+  return (base64: string) => {
+    const f32 = base64ToFloat32(base64);
+    if (!f32.length) return;
+    const buf = ctx.createBuffer(1, f32.length, 24000);
+    buf.getChannelData(0).set(f32);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    const startAt = Math.max(ctx.currentTime, nextStart);
+    src.start(startAt);
+    nextStart = startAt + buf.duration;
+  };
 }
 
 // Execute a Gemini tool call client-side (read-only, RLS enforced by anon key + user session)
@@ -87,9 +99,16 @@ export function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
-  const [voiceTranscript, setVoiceTranscript] = useState('');
   const [voiceError, setVoiceError] = useState('');
+  // Split transcripts so the user can see input is being captured separately
+  // from the assistant's reply.
+  const [voiceInput, setVoiceInput] = useState('');     // running input transcript
+  const [voiceOutput, setVoiceOutput] = useState('');   // running output transcript
+  const [chunksSent, setChunksSent] = useState(0);
+  const [micLevel, setMicLevel] = useState(0);          // 0..1 peak amplitude
+  const [inputRate, setInputRate] = useState<number | null>(null); // actual mic rate (diagnostic)
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,13 +117,16 @@ export function ChatPanel() {
   const playCtxRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const playerRef = useRef<((b64: string) => void) | null>(null);
+  // Throttle level updates so we don't trigger React renders every 8 ms
+  const lastLevelTickRef = useRef(0);
 
   const supabase = useMemo(() => createClient(), []);
 
-  // Scroll to bottom whenever messages update
+  // Scroll to bottom whenever messages or transcripts update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, voiceTranscript]);
+  }, [messages, voiceInput, voiceOutput]);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -123,7 +145,6 @@ export function ChatPanel() {
     setIsLoading(true);
 
     try {
-      // Build simplified history for server (plain text turns only)
       const history: HistoryItem[] = messages.map(m => ({ role: m.role, content: m.content }));
 
       const res = await fetch('/api/chat', {
@@ -162,8 +183,8 @@ export function ChatPanel() {
     workletNodeRef.current?.disconnect();
     workletNodeRef.current = null;
 
-    if (recordCtxRef.current?.state !== 'closed') {
-      try { await recordCtxRef.current?.close(); } catch {}
+    if (recordCtxRef.current && recordCtxRef.current.state !== 'closed') {
+      try { await recordCtxRef.current.close(); } catch {}
     }
     recordCtxRef.current = null;
 
@@ -171,25 +192,44 @@ export function ChatPanel() {
       try { await liveSessionRef.current.close(); } catch {}
       liveSessionRef.current = null;
     }
+
+    playerRef.current = null;
+    setMicLevel(0);
   }, []);
 
   // ── Stop voice ──────────────────────────────────────────────────────────────
 
   const stopVoice = useCallback(async () => {
     setVoiceState('stopping');
+
+    // Tell Gemini to flush any cached audio before we tear the session down.
+    // Per docs, audioStreamEnd is the "end of utterance" signal.
+    try {
+      liveSessionRef.current?.sendRealtimeInput?.({ audioStreamEnd: true });
+    } catch {}
+
     await cleanupVoice();
 
-    // Add transcript to message history so it's preserved in the panel
-    setVoiceTranscript(prev => {
-      if (prev.trim()) {
-        setMessages(ms => [
-          ...ms,
-          { id: uid(), role: 'assistant', content: `[Voice session transcript]\n${prev.trim()}` },
-        ]);
-      }
+    // Persist the voice exchange into the chat history so it isn't lost
+    // when we close the session.
+    setVoiceInput(prevIn => {
+      setVoiceOutput(prevOut => {
+        const block: string[] = [];
+        if (prevIn.trim()) block.push(`You said: ${prevIn.trim()}`);
+        if (prevOut.trim()) block.push(`Assistant: ${prevOut.trim()}`);
+        if (block.length) {
+          setMessages(ms => [
+            ...ms,
+            { id: uid(), role: 'assistant', content: block.join('\n\n') },
+          ]);
+        }
+        return '';
+      });
       return '';
     });
 
+    setChunksSent(0);
+    setInputRate(null);
     setVoiceState('idle');
   }, [cleanupVoice]);
 
@@ -197,7 +237,10 @@ export function ChatPanel() {
 
   const startVoice = useCallback(async () => {
     setVoiceError('');
-    setVoiceTranscript('');
+    setVoiceInput('');
+    setVoiceOutput('');
+    setChunksSent(0);
+    setMicLevel(0);
     setVoiceState('connecting');
 
     try {
@@ -206,11 +249,12 @@ export function ChatPanel() {
       if (!tokenRes.ok) throw new Error('Could not get voice token from server.');
       const { token, model } = await tokenRes.json() as { token: string; model: string };
 
-      // 2. Request microphone (echoCancellation+noiseSuppression help Gemini's VAD)
+      // 2. Mic — let the browser pick its native rate. We resample to 16 kHz
+      //    inside the AudioWorklet because forcing a 16 kHz AudioContext is
+      //    unreliable on Windows (silently falls back to device default).
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: 16000,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
@@ -218,29 +262,32 @@ export function ChatPanel() {
       });
       streamRef.current = stream;
 
-      // 3. AudioContext for recording (16 kHz so no downsampling in worklet)
-      const recordCtx = new AudioContext({ sampleRate: 16000 });
+      // 3. Recording context at the device's default rate
+      const recordCtx = new AudioContext();
       recordCtxRef.current = recordCtx;
       if (recordCtx.state === 'suspended') await recordCtx.resume();
+      console.log('[voice] recordCtx sampleRate =', recordCtx.sampleRate);
 
-      // 4. AudioContext for playback (default sample rate; buffers built at 24 kHz)
+      // 4. Playback context (default sample rate; buffers are explicitly built at 24 kHz)
       const playCtx = new AudioContext();
       playCtxRef.current = playCtx;
       if (playCtx.state === 'suspended') await playCtx.resume();
+      playerRef.current = makePlayer(playCtx);
 
-      // 5. Load AudioWorklet processor
+      // 5. Load AudioWorklet processor and wire the graph
       await recordCtx.audioWorklet.addModule('/audio-worklet-processor.js');
       const source = recordCtx.createMediaStreamSource(stream);
       const workletNode = new AudioWorkletNode(recordCtx, 'pcm-processor');
       workletNodeRef.current = workletNode;
       source.connect(workletNode);
-      // Connect worklet to a muted sink so the audio graph actually pulls samples
+      // Connect worklet output → muted gain → destination so the audio graph
+      // actually pulls samples through process(). Without this, AudioWorklets
+      // with no consumer can stall.
       const silentSink = recordCtx.createGain();
       silentSink.gain.value = 0;
       workletNode.connect(silentSink).connect(recordCtx.destination);
 
-      // 6. Connect to Gemini Live via the @google/genai SDK (dynamic import = client-only)
-      // Ephemeral tokens require v1alpha for the Live API connection.
+      // 6. Connect to Gemini Live (v1alpha is required for ephemeral tokens)
       const { GoogleGenAI } = await import('@google/genai');
       const genai = new GoogleGenAI({
         apiKey: token,
@@ -250,52 +297,66 @@ export function ChatPanel() {
       const session = await genai.live.connect({
         model: model ?? VOICE_MODEL,
         config: {
-          // Use string literals (Modality.AUDIO === 'AUDIO', ThinkingLevel.MINIMAL === 'MINIMAL')
-          // — avoids importing enums into a client component
           responseModalities: ['AUDIO' as any],
           systemInstruction: SYSTEM_INSTRUCTION,
           tools: [{ functionDeclarations: TOOL_DECLARATIONS as any }],
-          // Gemini 3.1 Flash Live: minimal thinking = lowest latency for voice
-          thinkingConfig: { thinkingLevel: 'MINIMAL' as any },
-          // Use the model's default voice (custom prebuilt voices may not be
-          // available on the preview model — letting it default avoids errors)
-          // Transcription enabled (Gemini auto-detects language; system instruction
-          // tells it to reply in the user's language)
           inputAudioTranscription: {} as any,
           outputAudioTranscription: {} as any,
         },
         callbacks: {
           onopen: () => {
+            console.log('[voice] session open');
             setVoiceState('active');
+            // Diagnostic probe: send a text input the moment the session opens.
+            // If the session closes ONLY when audio arrives, the problem is the
+            // audio bytes / mime type. If it closes on text too, the problem is
+            // the session config itself (model entitlement, malformed setup,
+            // ephemeral-token constraint mismatch, etc.).
+            setTimeout(() => {
+              try {
+                liveSessionRef.current?.sendRealtimeInput?.({
+                  text: 'Say hello in one short sentence.',
+                });
+                console.log('[voice] sent text probe');
+              } catch (probeErr) {
+                console.error('[voice] text probe failed:', probeErr);
+              }
+            }, 200);
           },
 
           onmessage: async (msg: any) => {
-            console.log('[voice] message from Gemini:', Object.keys(msg));
+            // Compact log so we can see what fields actually arrive
+            console.log('[voice] msg keys:', Object.keys(msg));
             const sc = msg.serverContent;
 
-            // ── Process ALL parts in modelTurn (Gemini 3.1: audio + text can co-occur)
+            // Audio + inline text parts (Gemini 3.1 may put both in one event)
             const parts = sc?.modelTurn?.parts as any[] | undefined;
             if (parts) {
               for (const part of parts) {
-                // Audio chunk from model
-                if (part.inlineData?.data && playCtxRef.current) {
-                  playPCMChunk(part.inlineData.data, playCtxRef.current);
+                if (part.inlineData?.data) {
+                  playerRef.current?.(part.inlineData.data);
                 }
-                // Inline text in model turn (rare for AUDIO modality, but possible)
                 if (part.text) {
-                  setVoiceTranscript(prev => prev + `Assistant: ${part.text}\n`);
+                  setVoiceOutput(prev => prev + part.text);
                 }
               }
             }
 
-            // ── Transcriptions (separate fields on serverContent)
+            // Separate transcription fields
             const inTx = sc?.inputTranscription?.text as string | undefined;
-            if (inTx) setVoiceTranscript(prev => prev + `You: ${inTx}\n`);
+            if (inTx) setVoiceInput(prev => prev + inTx);
 
             const outTx = sc?.outputTranscription?.text as string | undefined;
-            if (outTx) setVoiceTranscript(prev => prev + `Assistant: ${outTx}\n`);
+            if (outTx) setVoiceOutput(prev => prev + outTx);
 
-            // ── Function calls (synchronous in Gemini 3.1 — model waits for response)
+            // Add a paragraph break when the model finishes a turn so the
+            // next exchange starts on its own line.
+            if (sc?.turnComplete) {
+              setVoiceInput(prev => (prev && !prev.endsWith('\n') ? prev + '\n' : prev));
+              setVoiceOutput(prev => (prev && !prev.endsWith('\n') ? prev + '\n' : prev));
+            }
+
+            // Synchronous tool calls
             const fcs = msg.toolCall?.functionCalls as any[] | undefined;
             if (fcs?.length) {
               const responses = await Promise.all(
@@ -313,12 +374,13 @@ export function ChatPanel() {
           },
 
           onerror: (err: ErrorEvent) => {
-            console.error('[Gemini Live error]', err);
-            setVoiceError('Voice connection error. Please try again.');
+            console.error('[voice] error:', err);
+            setVoiceError(err?.message || 'Voice connection error.');
             stopVoice();
           },
 
-          onclose: () => {
+          onclose: (e: CloseEvent) => {
+            console.log('[voice] close: code=', e?.code, 'reason=', e?.reason);
             if (voiceState === 'active') stopVoice();
           },
         },
@@ -327,16 +389,39 @@ export function ChatPanel() {
       liveSessionRef.current = session;
 
       // 7. Stream PCM from the worklet → Gemini Live session
-      let chunksSent = 0;
-      workletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+      let chunks = 0;
+      workletNode.port.onmessage = (event: MessageEvent<WorkletMessage>) => {
+        const data = event.data;
+
+        if (data.type === 'init') {
+          console.log('[voice] worklet input rate =', data.inputRate, '→ resampling to 16000');
+          setInputRate(data.inputRate);
+          return;
+        }
+
+        if (data.type === 'level') {
+          // Throttle UI updates to ~10 Hz
+          const now = performance.now();
+          if (now - lastLevelTickRef.current > 100) {
+            lastLevelTickRef.current = now;
+            setMicLevel(data.peak);
+          }
+          return;
+        }
+
+        // type === 'audio'
         if (!liveSessionRef.current) return;
-        const base64 = arrayBufferToBase64(event.data);
-        liveSessionRef.current.sendRealtimeInput({
-          audio: { data: base64, mimeType: 'audio/pcm;rate=16000' },
-        });
-        chunksSent++;
-        if (chunksSent === 1) console.log('[voice] first audio chunk sent');
-        if (chunksSent % 100 === 0) console.log(`[voice] ${chunksSent} chunks sent`);
+        try {
+          const base64 = arrayBufferToBase64(data.data);
+          liveSessionRef.current.sendRealtimeInput({
+            audio: { data: base64, mimeType: 'audio/pcm;rate=16000' },
+          });
+          chunks++;
+          setChunksSent(chunks);
+          if (chunks === 1) console.log('[voice] first audio chunk sent');
+        } catch (sendErr) {
+          console.error('[voice] sendRealtimeInput failed:', sendErr);
+        }
       };
     } catch (err: any) {
       console.error('[startVoice]', err);
@@ -364,14 +449,13 @@ export function ChatPanel() {
           className="fixed bottom-6 left-6 z-40 w-14 h-14 bg-card border border-border rounded-full shadow-lg flex items-center justify-center hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Open AI assistant"
         >
-          {/* Chat bubble icon */}
           <svg className="w-6 h-6 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
         </button>
       )}
 
-      {/* ── Chat panel (slides up from bottom) ── */}
+      {/* ── Chat panel ── */}
       {isOpen && (
         <div className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-background border-t border-border rounded-t-2xl shadow-2xl"
           style={{ height: '70dvh' }}>
@@ -430,7 +514,7 @@ export function ChatPanel() {
               </div>
             ))}
 
-            {/* Loading indicator */}
+            {/* Loading indicator (text mode) */}
             {isLoading && (
               <div className="flex justify-start">
                 <div className="bg-muted text-foreground rounded-2xl rounded-bl-sm px-3.5 py-2.5">
@@ -443,10 +527,51 @@ export function ChatPanel() {
               </div>
             )}
 
-            {/* Live voice transcript */}
-            {(isVoiceActive || voiceTranscript) && (
-              <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground whitespace-pre-wrap font-mono">
-                {voiceTranscript || (isVoiceActive ? 'Listening…' : '')}
+            {/* ── Voice live panel ─────────────────────────────────────── */}
+            {isVoiceActive && (
+              <div className="space-y-2">
+                {/* Mic level + chunk counter */}
+                <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>
+                      Mic
+                      {inputRate ? ` · ${inputRate}Hz → 16000Hz` : ''}
+                    </span>
+                    <span className="font-mono">
+                      {chunksSent} chunk{chunksSent === 1 ? '' : 's'} sent
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 transition-[width] duration-100"
+                      style={{ width: `${Math.min(100, Math.round(micLevel * 140))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* You said */}
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 text-sm">
+                  <p className="text-[11px] uppercase tracking-wide text-primary font-semibold mb-1">
+                    You said
+                  </p>
+                  <p className="whitespace-pre-wrap text-foreground min-h-[1.25rem]">
+                    {voiceInput || (
+                      <span className="text-muted-foreground italic">Listening…</span>
+                    )}
+                  </p>
+                </div>
+
+                {/* Assistant said */}
+                <div className="rounded-xl border border-border bg-muted/30 p-3 text-sm">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold mb-1">
+                    Assistant
+                  </p>
+                  <p className="whitespace-pre-wrap text-foreground min-h-[1.25rem]">
+                    {voiceOutput || (
+                      <span className="text-muted-foreground italic">…</span>
+                    )}
+                  </p>
+                </div>
               </div>
             )}
 
@@ -470,7 +595,7 @@ export function ChatPanel() {
               className="flex-1 h-10 px-3.5 rounded-full border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             />
 
-            {/* Send button */}
+            {/* Send */}
             <button
               onClick={sendMessage}
               disabled={!input.trim() || isLoading || isVoiceActive}
@@ -482,7 +607,7 @@ export function ChatPanel() {
               </svg>
             </button>
 
-            {/* Mic button */}
+            {/* Mic */}
             {!isVoiceActive ? (
               <button
                 onClick={startVoice}
@@ -503,7 +628,6 @@ export function ChatPanel() {
                 )}
               </button>
             ) : (
-              // "Tap to stop" button when voice is active
               <button
                 onClick={stopVoice}
                 className="px-3 h-10 rounded-full bg-destructive text-destructive-foreground text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 animate-pulse hover:animate-none hover:opacity-90 active:scale-95 transition-all"
