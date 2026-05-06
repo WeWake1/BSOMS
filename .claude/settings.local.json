@@ -8,7 +8,15 @@
       "WebSearch",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:discuss.google.dev)",
-      "WebFetch(domain:discuss.ai.google.dev)"
+      "WebFetch(domain:discuss.ai.google.dev)",
+      "Bash(claude mcp *)",
+      "Bash(curl -s http://localhost:54321/mcp)",
+      "Bash(curl -sv http://localhost:54321/mcp)",
+      "Bash(supabase --version)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "supabase"
+  ],
+  "enableAllProjectMcpServers": true
 }

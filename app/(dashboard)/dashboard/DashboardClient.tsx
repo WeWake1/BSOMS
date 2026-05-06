@@ -267,6 +267,17 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
   const sortedOrders = useMemo(() => {
     let result = [...filteredOrders];
+
+    // When viewing dispatched orders, always sort by dispatch date (latest first)
+    if (selectedStatus === 'Dispatched') {
+      result.sort((a, b) => {
+        const aTime = a.dispatch_date ? new Date(a.dispatch_date).getTime() : 0;
+        const bTime = b.dispatch_date ? new Date(b.dispatch_date).getTime() : 0;
+        return bTime - aTime;
+      });
+      return result;
+    }
+
     switch (sortBy) {
       case 'date-asc':
         result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -285,7 +296,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         break;
     }
     return result;
-  }, [filteredOrders, sortBy]);
+  }, [filteredOrders, sortBy, selectedStatus]);
 
   const handleClearFilters = () => {
     setSearchQuery('');

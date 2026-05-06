@@ -142,6 +142,11 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress
         <div className="flex-1">
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Date</p>
           <p className="text-sm font-semibold text-foreground">{formatDate(order.date)}</p>
+          {order.status === 'Dispatched' && order.dispatch_date && (
+            <p className="text-[10px] font-semibold mt-0.5" style={{ color: 'var(--status-dispatched)' }}>
+              Dispatched {formatDate(order.dispatch_date)}
+            </p>
+          )}
         </div>
 
         {/* Attachment Indicators — PNG icons */}

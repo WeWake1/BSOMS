@@ -38,6 +38,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [photoPath, setPhotoPath] = useState<string | null>(null);
+  const [isPdfAttachment, setIsPdfAttachment] = useState(false);
+  const [attachmentFileName, setAttachmentFileName] = useState<string | null>(null);
   const [localCategories, setLocalCategories] = useState<Category[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,11 +93,16 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         }
 
         if (order.photo_url) {
+          const isPdf = order.photo_url.toLowerCase().endsWith('.pdf');
+          setIsPdfAttachment(isPdf);
+          setAttachmentFileName(isPdf ? 'PDF Document' : null);
           supabase.storage.from('order-photos').createSignedUrl(order.photo_url, 3600).then(({ data }) => {
             if (data) setPhotoUrl(data.signedUrl);
           });
         } else {
           setPhotoUrl(null);
+          setIsPdfAttachment(false);
+          setAttachmentFileName(null);
         }
       } else {
         const today = new Date();
@@ -115,6 +122,8 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
         setDescription('');
         setPhotoPath(null);
         setPhotoUrl(null);
+        setIsPdfAttachment(false);
+        setAttachmentFileName(null);
         setAudioPath(null);
         setAudioUrl(null);
         setIsRecording(false);
@@ -129,24 +138,34 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
     new Map([...categories, ...localCategories].map(c => [c.id, c])).values()
   ).sort((a, b) => a.name.localeCompare(b.name));
 
-  // Photo Upload
+  // Photo / PDF Upload
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const localPreview = URL.createObjectURL(file);
-    setPhotoUrl(localPreview);
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    setIsPdfAttachment(isPdf);
+    setAttachmentFileName(file.name);
+    let localPreview: string | null = null;
+    if (isPdf) {
+      setPhotoUrl('__pdf__');
+    } else {
+      localPreview = URL.createObjectURL(file);
+      setPhotoUrl(localPreview);
+    }
     setPhotoUploading(true);
     try {
-      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileExt = file.name.split('.').pop() || (isPdf ? 'pdf' : 'jpg');
       const filePath = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage.from('order-photos').upload(filePath, file);
       if (uploadError) throw uploadError;
       setPhotoPath(filePath);
     } catch {
-      URL.revokeObjectURL(localPreview);
+      if (localPreview) URL.revokeObjectURL(localPreview);
       setPhotoUrl(null);
       setPhotoPath(null);
-      toast.error("Couldn't upload the photo. Please try again.");
+      setIsPdfAttachment(false);
+      setAttachmentFileName(null);
+      toast.error("Couldn't upload the attachment. Please try again.");
     } finally {
       setPhotoUploading(false);
     }
@@ -386,21 +405,41 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
           />
         </div>
 
-        {/* ── Reference Photo ──────────────────────── */}
+        {/* ── Attachment (Photo or PDF) ──────────────────────── */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-foreground">Reference Photo</label>
+          <label className="text-sm font-medium text-foreground">Attachment</label>
           {photoUrl ? (
-            <div className="relative w-full h-40 bg-muted rounded-xl overflow-hidden border border-border group">
-              <img src={photoUrl} alt="Order reference" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={() => { setPhotoUrl(null); setPhotoPath(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                className="absolute top-2 right-2 bg-foreground/60 text-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-tap"
-                aria-label="Remove photo"
-              >
-                <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-              </button>
-            </div>
+            isPdfAttachment ? (
+              <div className="relative w-full bg-muted rounded-xl border border-border flex items-center gap-3 p-3.5">
+                <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{attachmentFileName || 'PDF Document'}</p>
+                  <p className="text-xs text-muted-foreground">{photoUploading ? 'Uploading…' : 'PDF attached'}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setPhotoUrl(null); setPhotoPath(null); setIsPdfAttachment(false); setAttachmentFileName(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                  className="text-xs font-bold text-destructive hover:text-destructive/80 py-1 px-2 rounded-md hover:bg-destructive/10 transition-colors min-tap shrink-0"
+                  aria-label="Remove attachment"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="relative w-full h-40 bg-muted rounded-xl overflow-hidden border border-border group">
+                <img src={photoUrl} alt="Order reference" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => { setPhotoUrl(null); setPhotoPath(null); setIsPdfAttachment(false); setAttachmentFileName(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                  className="absolute top-2 right-2 bg-foreground/60 text-card rounded-full w-8 h-8 flex items-center justify-center hover:bg-destructive transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-tap"
+                  aria-label="Remove photo"
+                >
+                  <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                </button>
+              </div>
+            )
           ) : (
             <button
               type="button"
@@ -409,19 +448,19 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
               disabled={photoUploading}
             >
               {photoUploading ? (
-                <div role="status" aria-label="Uploading photo">
+                <div role="status" aria-label="Uploading attachment">
                   <svg className="animate-spin w-5 h-5 mb-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                   <span className="text-sm font-medium">Uploading...</span>
                 </div>
               ) : (
                 <>
                   <svg className="w-6 h-6 mb-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  <span className="text-sm font-medium">Capture or upload photo</span>
+                  <span className="text-sm font-medium">Capture or upload photo / PDF</span>
                 </>
               )}
             </button>
           )}
-          <input type="file" ref={fileInputRef} className="hidden" accept="image/*, .heic" onChange={handlePhotoUpload} />
+          <input type="file" ref={fileInputRef} className="hidden" accept="image/*, .heic, application/pdf, .pdf" onChange={handlePhotoUpload} />
         </div>
 
         {/* ── Voice Note ────────────────────────────── */}
