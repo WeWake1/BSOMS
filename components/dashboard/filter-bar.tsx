@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import type { Category, OrderStatus } from '@/types/database';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
@@ -8,8 +9,8 @@ import { cn } from '@/lib/utils';
 interface FilterBarProps {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  selectedCategory: string;
-  setSelectedCategory: (c: string) => void;
+  selectedCategories: string[];
+  setSelectedCategories: (c: string[]) => void;
   selectedStatus: OrderStatus | 'All';
   setSelectedStatus: (s: OrderStatus | 'All') => void;
   categories: Category[];
@@ -27,8 +28,8 @@ interface FilterBarProps {
 export function FilterBar({
   searchQuery,
   setSearchQuery,
-  selectedCategory,
-  setSelectedCategory,
+  selectedCategories,
+  setSelectedCategories,
   selectedStatus,
   setSelectedStatus,
   categories,
@@ -41,9 +42,51 @@ export function FilterBar({
   setViewMode,
   allCustomerNames = [],
 }: FilterBarProps) {
-  const hasFilters = searchQuery !== '' || selectedCategory !== 'All' || selectedStatus !== 'All';
+  const hasFilters = searchQuery !== '' || selectedCategories.length > 0 || selectedStatus !== 'All';
   const isStatusActive = selectedStatus !== 'All';
-  const isCategoryActive = selectedCategory !== 'All';
+  const isCategoryActive = selectedCategories.length > 0;
+
+  // ── Category multi-select dropdown ────────────────────────────────────────
+  const [isCatOpen, setIsCatOpen] = useState(false);
+  const [catPos, setCatPos] = useState({ top: 0, left: 0, width: 0 });
+  const catButtonRef = useRef<HTMLButtonElement>(null);
+  const catDropdownRef = useRef<HTMLDivElement>(null);
+
+  const openCatDropdown = () => {
+    if (catButtonRef.current) {
+      const r = catButtonRef.current.getBoundingClientRect();
+      setCatPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    setIsCatOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isCatOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const insideButton = catButtonRef.current?.contains(target);
+      const insideDropdown = catDropdownRef.current?.contains(target);
+      if (!insideButton && !insideDropdown) {
+        setIsCatOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isCatOpen]);
+
+  const toggleCategory = (id: string) => {
+    setSelectedCategories(
+      selectedCategories.includes(id)
+        ? selectedCategories.filter((c) => c !== id)
+        : [...selectedCategories, id]
+    );
+  };
+
+  const catLabel = selectedCategories.length === 0
+    ? 'All Categories'
+    : selectedCategories.length === 1
+      ? (categories.find((c) => c.id === selectedCategories[0])?.name ?? '1 Category')
+      : `${selectedCategories.length} Categories`;
 
   // ── Autocomplete state ─────────────────────────────────────────────────────
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -233,26 +276,72 @@ export function FilterBar({
             </SelectPopover>
           </Select>
 
-          <Select
-            aria-label="Filter by category"
-            selectedKey={selectedCategory}
-            onSelectionChange={(k) => setSelectedCategory(k as string)}
-          >
-            <SelectTrigger className={cn(
-              "h-9 px-3 rounded-xl border border-border bg-card text-foreground text-xs font-semibold shadow-sm shrink-0 min-w-[120px] transition-colors duration-150",
-              isCategoryActive && "filter-active"
-            )}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectPopover>
-              <SelectListBox>
-                <SelectItem id="All">All Categories</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} id={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectListBox>
-            </SelectPopover>
-          </Select>
+          <div className="relative shrink-0">
+            <button
+              ref={catButtonRef}
+              aria-label="Filter by category"
+              aria-haspopup="listbox"
+              aria-expanded={isCatOpen}
+              onClick={() => isCatOpen ? setIsCatOpen(false) : openCatDropdown()}
+              className={cn(
+                "h-9 px-3 rounded-xl border border-border bg-card text-foreground text-xs font-semibold shadow-sm min-w-[120px] max-w-[160px] transition-colors duration-150 flex items-center justify-between gap-1.5",
+                isCategoryActive && "filter-active"
+              )}
+            >
+              <span className="truncate">{catLabel}</span>
+              <svg className={cn("w-3.5 h-3.5 shrink-0 text-muted-foreground transition-transform duration-150", isCatOpen && "rotate-180")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            {isCatOpen && typeof document !== 'undefined' && createPortal(
+              <div
+                ref={catDropdownRef}
+                style={{ position: 'fixed', top: catPos.top, left: catPos.left, minWidth: Math.max(catPos.width, 180), zIndex: 9999 }}
+                className="bg-card border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+              >
+                {selectedCategories.length > 0 && (
+                  <div className="px-3 pt-2 pb-1 border-b border-border">
+                    <button
+                      onMouseDown={(e) => { e.preventDefault(); setSelectedCategories([]); }}
+                      className="text-xs font-semibold text-destructive hover:text-destructive/80 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+                <ul role="listbox" aria-multiselectable="true" aria-label="Filter by category" className="py-1 max-h-60 overflow-y-auto">
+                  {categories.map((c) => {
+                    const checked = selectedCategories.includes(c.id);
+                    return (
+                      <li key={c.id} role="option" aria-selected={checked}>
+                        <button
+                          className={cn(
+                            "w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-left transition-colors",
+                            checked ? "text-primary bg-primary/8 font-semibold" : "text-foreground hover:bg-muted"
+                          )}
+                          onMouseDown={(e) => { e.preventDefault(); toggleCategory(c.id); }}
+                        >
+                          <span className={cn(
+                            "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
+                            checked ? "bg-primary border-primary" : "border-muted-foreground/40"
+                          )}>
+                            {checked && (
+                              <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </span>
+                          <span className="truncate">{c.name}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                  {categories.length === 0 && (
+                    <li className="px-3.5 py-2.5 text-sm text-muted-foreground">No categories</li>
+                  )}
+                </ul>
+              </div>,
+              document.body
+            )}
+          </div>
 
           <Select
             aria-label="Sort options"

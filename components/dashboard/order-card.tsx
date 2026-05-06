@@ -85,9 +85,9 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress
         </div>
       )}
 
-      <div className={cn("flex justify-between items-start gap-4", isSelectMode && "pl-5")}>
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
+      <div className={cn("flex justify-between items-start gap-3", isSelectMode && "pl-5")}>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span
               className="text-[17px] font-bold text-foreground tracking-tight group-hover:text-primary transition-colors"
               style={!isDetailOpen ? { viewTransitionName: `order-num-${order.id}` } as any : {}}

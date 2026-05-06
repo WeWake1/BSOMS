@@ -25,7 +25,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const { orders, categories, loading, error, flashIds, newIds, isConnected } = useOrders();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | 'All'>('All');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
@@ -252,7 +252,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       if (selectedStatus !== 'All' && order.status !== selectedStatus) return false;
-      if (selectedCategory !== 'All' && order.category_id !== selectedCategory) return false;
+      if (selectedCategories.length > 0 && !selectedCategories.includes(order.category_id)) return false;
       
       if (searchQuery.trim() !== '') {
         const query = searchQuery.toLowerCase();
@@ -263,7 +263,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       
       return true;
     });
-  }, [orders, selectedStatus, selectedCategory, searchQuery]);
+  }, [orders, selectedStatus, selectedCategories, searchQuery]);
 
   const sortedOrders = useMemo(() => {
     let result = [...filteredOrders];
@@ -289,7 +289,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
   const handleClearFilters = () => {
     setSearchQuery('');
-    setSelectedCategory('All');
+    setSelectedCategories([]);
     setSelectedStatus('All');
   };
 
@@ -372,8 +372,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       <FilterBar
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
+        selectedCategories={selectedCategories}
+        setSelectedCategories={setSelectedCategories}
         selectedStatus={selectedStatus}
         setSelectedStatus={setSelectedStatus}
         categories={categories}
@@ -456,7 +456,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <div className="py-14 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl mt-4 px-6">
             <p className="font-semibold text-foreground text-base">No orders match your filters</p>
             <p className="text-sm mt-1.5 text-muted-foreground">Try a different status, category, or search term.</p>
-            {(searchQuery || selectedCategory !== 'All' || selectedStatus !== 'All') && (
+            {(searchQuery || selectedCategories.length > 0 || selectedStatus !== 'All') && (
               <Button variant="secondary" size="sm" onClick={handleClearFilters} className="mt-4">
                 Clear Filters
               </Button>
