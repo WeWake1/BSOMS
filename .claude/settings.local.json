@@ -12,11 +12,22 @@
       "Bash(claude mcp *)",
       "Bash(curl -s http://localhost:54321/mcp)",
       "Bash(curl -sv http://localhost:54321/mcp)",
-      "Bash(supabase --version)"
+      "Bash(supabase --version)",
+      "Bash(del \"public\\\\audio-worklet-processor.js\")",
+      "Bash(del \"app\\\\api\\\\chat\\\\voice-token\\\\route.ts\")",
+      "Bash(node -e \"require\\('./lib/voice-bridge'\\)\")",
+      "Bash(node server.js)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/chat)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs kill -9)",
+      "Bash(node -e ' *)",
+      "Bash(fuser -k 3000/tcp)",
+      "Bash(npx kill-port *)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "supabase"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
