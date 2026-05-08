@@ -82,9 +82,9 @@ Create `.env.local` in the project root with these values:
 
 ```env
 # Supabase — get values from Supabase project settings
-NEXT_PUBLIC_SUPABASE_URL=https://eszktnsfpoqvbybtmxft.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzemt0bnNmcG9xdmJ5YnRteGZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4OTM5MTMsImV4cCI6MjA4OTQ2OTkxM30.CHWKk96ZWW2Jc2gNaqxbchDiqOKzJgOpb_hXzfa2VVE
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVzemt0bnNmcG9xdmJ5YnRteGZ0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg5MzkxMywiZXhwIjoyMDg5NDY5OTEzfQ.gNfX84vcyz8MUNtghKoaWmRpS0TdgRxxd8g1TXh82K0
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 > **Security note:** These are already committed in `.env.local` (which is gitignored). No action needed — just don't commit these values.
