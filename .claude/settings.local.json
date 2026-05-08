@@ -23,7 +23,10 @@
       "Bash(xargs kill -9)",
       "Bash(node -e ' *)",
       "Bash(fuser -k 3000/tcp)",
-      "Bash(npx kill-port *)"
+      "Bash(npx kill-port *)",
+      "Bash(identify /Users/wewake/AnitGrav/BhaktiSales/AppLogo.png)",
+      "Bash(sips -g pixelWidth -g pixelHeight /Users/wewake/AnitGrav/BhaktiSales/AppLogo.png)",
+      "Bash(sips *)"
     ]
   },
   "enableAllProjectMcpServers": true,
