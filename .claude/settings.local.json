@@ -26,7 +26,11 @@
       "Bash(npx kill-port *)",
       "Bash(identify /Users/wewake/AnitGrav/BhaktiSales/AppLogo.png)",
       "Bash(sips -g pixelWidth -g pixelHeight /Users/wewake/AnitGrav/BhaktiSales/AppLogo.png)",
-      "Bash(sips *)"
+      "Bash(sips *)",
+      "Bash(convert --version)",
+      "Bash(ffmpeg -version)",
+      "Bash(node -e \"require\\('sharp'\\); console.log\\('sharp available'\\)\")",
+      "Bash(python3 -c \"from PIL import Image; print\\('PIL available'\\)\")"
     ]
   },
   "enableAllProjectMcpServers": true,
