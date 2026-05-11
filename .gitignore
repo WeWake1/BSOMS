@@ -34,3 +34,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Proposals
+OrderFlow_Proposal.docx
+OrderFlow_Proposal_v2.docx

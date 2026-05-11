@@ -30,7 +30,8 @@
       "Bash(convert --version)",
       "Bash(ffmpeg -version)",
       "Bash(node -e \"require\\('sharp'\\); console.log\\('sharp available'\\)\")",
-      "Bash(python3 -c \"from PIL import Image; print\\('PIL available'\\)\")"
+      "Bash(python3 -c \"from PIL import Image; print\\('PIL available'\\)\")",
+      "Bash(npx next *)"
     ]
   },
   "enableAllProjectMcpServers": true,
