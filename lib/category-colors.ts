@@ -20,6 +20,31 @@ export const CATEGORY_COLOR_OPTIONS: { key: CategoryColorKey; label: string; bg:
   { key: 'fuchsia', label: 'Fuchsia', bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/30', text: 'text-fuchsia-700 dark:text-fuchsia-400', border: 'border-fuchsia-200 dark:border-fuchsia-800', dot: 'bg-fuchsia-500 dark:bg-fuchsia-400', swatch: 'bg-fuchsia-400 dark:bg-fuchsia-500' },
 ];
 
+/** Hex values for the -500 shade of each palette key (for SVG-based charts). */
+export const CATEGORY_HEX: Record<CategoryColorKey, string> = {
+  violet:  '#8b5cf6',
+  blue:    '#3b82f6',
+  emerald: '#10b981',
+  amber:   '#f59e0b',
+  rose:    '#f43f5e',
+  cyan:    '#06b6d4',
+  orange:  '#f97316',
+  pink:    '#ec4899',
+  teal:    '#14b8a6',
+  indigo:  '#6366f1',
+  lime:    '#84cc16',
+  fuchsia: '#d946ef',
+};
+
+export function getCategoryHex(categoryId: string, storedColor?: string | null): string {
+  if (storedColor && storedColor in CATEGORY_HEX) {
+    return CATEGORY_HEX[storedColor as CategoryColorKey];
+  }
+  const keys = Object.keys(CATEGORY_HEX) as CategoryColorKey[];
+  const hash = categoryId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return CATEGORY_HEX[keys[hash % keys.length]];
+}
+
 const DEFAULT_PALETTE = CATEGORY_COLOR_OPTIONS[0]; // violet fallback
 
 /**

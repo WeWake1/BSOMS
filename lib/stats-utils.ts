@@ -7,7 +7,7 @@ import type { OrderWithCategory, OrderStatus } from '@/types/database';
 
 // ─── Period types ───────────────────────────────────────────────────────────
 
-export type PeriodPreset = 'this_week' | 'last_month' | 'last_6_months' | 'last_year' | 'custom';
+export type PeriodPreset = 'week' | 'month' | 'year' | 'custom';
 
 export interface Period {
   preset: PeriodPreset;
@@ -46,30 +46,41 @@ export function diffDays(fromIso: string, toIso: string): number {
 
 // ─── Period builders ────────────────────────────────────────────────────────
 
-export function buildPeriod(preset: PeriodPreset, custom?: { from: string; to: string }): Period {
+export function buildPeriod(
+  preset: PeriodPreset,
+  opts?: { from?: string; to?: string; monthKey?: string; year?: number },
+): Period {
   const today = new Date();
-  const to = toISODate(today);
+  const todayIso = toISODate(today);
 
-  if (preset === 'this_week') {
+  if (preset === 'week') {
     // Monday of this week → today (Mon-anchored)
     const day = today.getDay(); // 0=Sun, 1=Mon...
     const daysSinceMonday = (day + 6) % 7;
     const monday = new Date(today);
     monday.setDate(today.getDate() - daysSinceMonday);
-    return { preset, from: toISODate(monday), to, label: 'This week' };
+    return { preset, from: toISODate(monday), to: todayIso, label: 'This week' };
   }
-  if (preset === 'last_month') {
-    return { preset, from: addDays(to, -29), to, label: 'Last 30 days' };
+  if (preset === 'month') {
+    // Calendar month: opts.monthKey ('YYYY-MM') or current month
+    const key = opts?.monthKey ?? toMonthKey(today);
+    const from = monthStart(key);
+    const isCurrentMonth = key === toMonthKey(today);
+    const to = isCurrentMonth ? todayIso : monthEnd(key);
+    const label = parseMonthKey(key).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    return { preset, from, to, label };
   }
-  if (preset === 'last_6_months') {
-    return { preset, from: addDays(to, -181), to, label: 'Last 6 months' };
-  }
-  if (preset === 'last_year') {
-    return { preset, from: addDays(to, -364), to, label: 'Last 1 year' };
+  if (preset === 'year') {
+    // Calendar year-to-date for current year, full year for prior years
+    const yr = opts?.year ?? today.getFullYear();
+    const from = `${yr}-01-01`;
+    const isCurrentYear = yr === today.getFullYear();
+    const to = isCurrentYear ? todayIso : `${yr}-12-31`;
+    return { preset, from, to, label: String(yr) };
   }
   // custom
-  const from = custom?.from ?? addDays(to, -29);
-  const cTo = custom?.to ?? to;
+  const from = opts?.from ?? addDays(todayIso, -29);
+  const cTo = opts?.to ?? todayIso;
   return { preset: 'custom', from, to: cTo, label: `${from} → ${cTo}` };
 }
 
@@ -219,6 +230,57 @@ export function bucketByDay(
   }
 
   return Array.from(buckets.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ─── Month-range helpers (for Doors Made chart) ────────────────────────────
+
+/** YYYY-MM key for a date. */
+export function toMonthKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+/** Parse 'YYYY-MM' to local Date at day 1. */
+export function parseMonthKey(key: string): Date {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1);
+}
+
+/** Add N months to a 'YYYY-MM' key, return new 'YYYY-MM'. */
+export function addMonths(key: string, n: number): string {
+  const d = parseMonthKey(key);
+  d.setMonth(d.getMonth() + n);
+  return toMonthKey(d);
+}
+
+/** First day of month as YYYY-MM-DD. */
+export function monthStart(key: string): string {
+  return `${key}-01`;
+}
+
+/** Last day of month as YYYY-MM-DD. */
+export function monthEnd(key: string): string {
+  const d = parseMonthKey(key);
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(0); // last day of previous month (i.e. our month)
+  return toISODate(d);
+}
+
+/** Short label for a month key, e.g. 'Jan', or 'Jan ’25' if window crosses years. */
+export function monthLabel(key: string, includeYear = false): string {
+  const d = parseMonthKey(key);
+  const month = d.toLocaleDateString('en-US', { month: 'short' });
+  if (!includeYear) return month;
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${month} ’${yy}`;
+}
+
+/** Window of N month keys ending at `endKey` (inclusive). */
+export function monthWindow(endKey: string, count: number): string[] {
+  const keys: string[] = [];
+  for (let i = count - 1; i >= 0; i--) keys.push(addMonths(endKey, -i));
+  return keys;
 }
 
 // ─── Day-of-week bucketing ──────────────────────────────────────────────────

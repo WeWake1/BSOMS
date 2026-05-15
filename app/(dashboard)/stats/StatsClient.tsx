@@ -16,7 +16,7 @@ import { MetricStrip, type StripMetric } from '@/components/stats/metric-strip';
 import { OrderTrend } from '@/components/stats/order-trend';
 import { StatusDonut } from '@/components/stats/status-donut';
 import { CategoryPerformance } from '@/components/stats/category-performance';
-import { CategoryInsights } from '@/components/stats/category-insights';
+import { DoorsMade } from '@/components/stats/doors-made';
 import { HorizontalBarChart, type BarItem } from '@/components/stats/horizontal-bar-chart';
 import { DayOfWeekPanel } from '@/components/stats/day-of-week';
 import { PeriodComparison } from '@/components/stats/period-comparison';
@@ -24,7 +24,7 @@ import { StatsSkeleton } from '@/components/stats/skeleton';
 import type { AuthUser } from '@/lib/auth';
 
 export function StatsClient({ user }: { user: AuthUser }) {
-  const [period, setPeriod] = useState<Period>(() => buildPeriod('last_month'));
+  const [period, setPeriod] = useState<Period>(() => buildPeriod('month'));
   const [data, setData] = useState<StatsDatasets | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -186,16 +186,16 @@ export function StatsClient({ user }: { user: AuthUser }) {
           <StatsSkeleton />
         ) : (
           <>
-            {/* Strip */}
+            {/* Strip — top */}
             <MetricStrip metrics={metrics} />
 
-            {/* Category performance + insights — moved to the top */}
+            {/* Category Performance + Doors Made — paired */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-              <div className="lg:col-span-7">
+              <div className="lg:col-span-5">
                 <CategoryPerformance data={derived.cats} totalOrders={derived.current.totalOrders} />
               </div>
-              <div className="lg:col-span-5">
-                <CategoryInsights data={derived.cats} />
+              <div className="lg:col-span-7">
+                <DoorsMade />
               </div>
             </div>
 

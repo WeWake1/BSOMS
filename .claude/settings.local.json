@@ -31,7 +31,8 @@
       "Bash(ffmpeg -version)",
       "Bash(node -e \"require\\('sharp'\\); console.log\\('sharp available'\\)\")",
       "Bash(python3 -c \"from PIL import Image; print\\('PIL available'\\)\")",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(npx shadcn@latest add \"https://21st.dev/r/reaviz/stacked-bar\" --yes)"
     ]
   },
   "enableAllProjectMcpServers": true,
