@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { cn } from '@/lib/utils';
+import { cn, glass } from '@/lib/utils';
 import type { DayBucket } from '@/lib/stats-utils';
 
 type Metric = 'orders' | 'qty' | 'dispatched';
@@ -102,19 +102,8 @@ export function OrderTrend({ data, title = 'Order Trend', subtitle = 'Daily acti
               />
               <Tooltip
                 cursor={{ stroke: 'var(--primary)', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.6 }}
-                contentStyle={{
-                  background: 'var(--card)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: 'var(--foreground)',
-                  boxShadow: '0 8px 24px -8px rgb(0 0 0 / 0.15)',
-                  padding: '6px 10px',
-                }}
-                labelStyle={{ color: 'var(--muted-foreground)', fontWeight: 700, marginBottom: 2 }}
-                formatter={(value) => [`${value}`, ''] as [string, string]}
-                separator=""
+                content={<OrderTrendTooltip metricLabel={METRICS.find(m => m.key === metric)?.label ?? ''} />}
+                wrapperStyle={{ outline: 'none' }}
               />
               <Area
                 type="monotone"
@@ -130,6 +119,32 @@ export function OrderTrend({ data, title = 'Order Trend', subtitle = 'Daily acti
             </AreaChart>
           </ResponsiveContainer>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Custom chart tooltip (frosted glass) ───────────────────────────────────
+interface OrderTrendTooltipProps {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  metricLabel: string;
+}
+
+function OrderTrendTooltip({ active, payload, label, metricLabel }: OrderTrendTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  const value = payload[0]?.value as number | undefined;
+  if (value === undefined) return null;
+
+  return (
+    <div className={cn(glass.light, "border border-border rounded-xl shadow-2xl p-3 min-w-[140px]")}>
+      <div className="flex items-baseline justify-between gap-3 pb-2 mb-2 border-b border-border/60">
+        <span className="text-xs font-extrabold text-foreground tracking-tight">{label}</span>
+      </div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{metricLabel}</span>
+        <span className="text-base font-extrabold text-foreground tabular-nums">{value.toLocaleString()}</span>
       </div>
     </div>
   );

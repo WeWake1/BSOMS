@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import type { Category, OrderStatus } from '@/types/database';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { cn, glass } from '@/lib/utils';
 
 interface FilterBarProps {
   searchQuery: string;
@@ -70,8 +70,20 @@ export function FilterBar({
         setIsCatOpen(false);
       }
     };
+    // Close on any page scroll (matches react-aria Select behaviour for the
+    // Status/Date filters). Ignore scroll events from within the dropdown's
+    // own scrollable list.
+    const scrollHandler = (e: Event) => {
+      const target = e.target as Node;
+      if (catDropdownRef.current?.contains(target)) return;
+      setIsCatOpen(false);
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    window.addEventListener('scroll', scrollHandler, true);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', scrollHandler, true);
+    };
   }, [isCatOpen]);
 
   const toggleCategory = (id: string) => {
@@ -93,6 +105,38 @@ export function FilterBar({
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const searchRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLUListElement>(null);
+  const [suggestionPos, setSuggestionPos] = useState({ top: 0, left: 0, width: 0 });
+
+  const positionSuggestions = () => {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect();
+      setSuggestionPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+  };
+
+  // ── Close-on-scroll for react-aria Selects (Status, Sort By / Date) ──────
+  // The base Popover wrapper isn't a guaranteed mount point in dev, so the
+  // listener is installed here at the filter-bar level. Custom dropdowns
+  // (category) mark themselves with `data-self-managed-popover` to opt out.
+  useEffect(() => {
+    const onScroll = (e: Event) => {
+      const target = e.target as Element | null;
+      if (
+        target &&
+        typeof (target as HTMLElement).closest === 'function' &&
+        (target as HTMLElement).closest('[role="dialog"], [role="listbox"], [role="menu"]')
+      ) {
+        return;
+      }
+      const openTriggers = document.querySelectorAll<HTMLElement>(
+        'button[aria-haspopup="listbox"][aria-expanded="true"]:not([data-self-managed-popover])'
+      );
+      openTriggers.forEach((t) => t.click());
+    };
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, []);
 
   const suggestions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -118,10 +162,14 @@ export function FilterBar({
       .slice(0, 6);
   }, [searchQuery, allCustomerNames]);
 
-  // Close suggestions when clicking outside
+  // Close suggestions when clicking outside (also exempt portaled suggestions
+  // list), and close on page scroll to match the other dropdowns.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideSearch = searchRef.current?.contains(target);
+      const insideSuggestions = suggestionsRef.current?.contains(target);
+      if (!insideSearch && !insideSuggestions) {
         setShowSuggestions(false);
         setActiveSuggestionIndex(-1);
       }
@@ -129,6 +177,24 @@ export function FilterBar({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Recompute portaled-suggestions position whenever they appear / list size changes
+  useEffect(() => {
+    if (showSuggestions && suggestions.length > 0) positionSuggestions();
+  }, [showSuggestions, suggestions.length]);
+
+  // Close on page scroll outside the suggestions list
+  useEffect(() => {
+    if (!showSuggestions) return;
+    const onScroll = (e: Event) => {
+      const target = e.target as Node;
+      if (suggestionsRef.current?.contains(target)) return;
+      setShowSuggestions(false);
+      setActiveSuggestionIndex(-1);
+    };
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [showSuggestions]);
 
   const handleSuggestionSelect = (name: string) => {
     setSearchQuery(name);
@@ -168,7 +234,7 @@ export function FilterBar({
   };
 
   return (
-    <div className="sticky top-0 z-40 -mx-4 px-4 py-3 bg-background/80 backdrop-blur-xl border-b border-border shadow-sm mb-4 transition-colors duration-200">
+    <div className={cn(glass.medium, "sticky top-0 z-40 -mx-4 px-4 py-3 border-b border-border shadow-sm mb-4 transition-colors duration-200")}>
       <div className="flex flex-col gap-2">
 
         {/* Row 1: View toggle + Search */}
@@ -217,13 +283,17 @@ export function FilterBar({
               className="block w-full h-11 pl-10 pr-3 rounded-xl border border-border bg-card text-foreground text-sm focus:ring-2 focus:ring-ring focus:border-transparent shadow-sm transition-[box-shadow,border-color] duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] placeholder:text-muted-foreground outline-none"
             />
 
-            {/* Autocomplete suggestions dropdown */}
-            {showSuggestions && suggestions.length > 0 && (
+            {/* Autocomplete suggestions — portaled out of the sticky filter
+                bar's backdrop-filter root so the dropdown's own blur reaches
+                the page content underneath. */}
+            {showSuggestions && suggestions.length > 0 && typeof document !== 'undefined' && createPortal(
               <ul
+                ref={suggestionsRef}
                 id="search-suggestions"
                 role="listbox"
                 aria-label="Customer name suggestions"
-                className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 bg-card border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                style={{ position: 'fixed', top: suggestionPos.top, left: suggestionPos.left, width: suggestionPos.width, zIndex: 9999 }}
+                className={cn(glass.light, "border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100")}
               >
                 {suggestions.map((name, idx) => (
                   <li
@@ -246,7 +316,8 @@ export function FilterBar({
                     <span>{highlightMatch(name, searchQuery.trim())}</span>
                   </li>
                 ))}
-              </ul>
+              </ul>,
+              document.body
             )}
           </div>
         </div>
@@ -282,6 +353,7 @@ export function FilterBar({
               aria-label="Filter by category"
               aria-haspopup="listbox"
               aria-expanded={isCatOpen}
+              data-self-managed-popover
               onClick={() => isCatOpen ? setIsCatOpen(false) : openCatDropdown()}
               className={cn(
                 "h-9 px-3 rounded-xl border border-border bg-card text-foreground text-xs font-semibold shadow-sm min-w-[120px] max-w-[160px] transition-colors duration-150 flex items-center justify-between gap-1.5",
@@ -295,7 +367,7 @@ export function FilterBar({
               <div
                 ref={catDropdownRef}
                 style={{ position: 'fixed', top: catPos.top, left: catPos.left, minWidth: Math.max(catPos.width, 180), zIndex: 9999 }}
-                className="bg-card border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                className={cn(glass.light, "border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100")}
               >
                 {selectedCategories.length > 0 && (
                   <div className="px-3 pt-2 pb-1 border-b border-border">
@@ -321,7 +393,9 @@ export function FilterBar({
                         >
                           <span className={cn(
                             "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                            checked ? "bg-primary border-primary" : "border-muted-foreground/40"
+                            checked
+                              ? "bg-primary border-primary"
+                              : "border-foreground/40 bg-background/70"
                           )}>
                             {checked && (
                               <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">

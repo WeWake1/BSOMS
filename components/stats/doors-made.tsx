@@ -7,6 +7,7 @@ import {
 import toast from 'react-hot-toast';
 import { createClient } from '@/lib/supabase/client';
 import { getCategoryHex } from '@/lib/category-colors';
+import { cn, glass } from '@/lib/utils';
 import {
   addMonths, monthStart, monthEnd, monthLabel, monthWindow, parseMonthKey, toMonthKey,
 } from '@/lib/stats-utils';
@@ -302,7 +303,7 @@ function DoorsTooltip({ active, payload, colorByCategory }: TooltipProps) {
     .sort((a, b) => b.value - a.value);
 
   return (
-    <div className="bg-card/95 backdrop-blur-md border border-border rounded-xl shadow-2xl p-3 min-w-[180px]">
+    <div className={cn(glass.light, "border border-border rounded-xl shadow-2xl p-3 min-w-[180px]")}>
       <div className="flex items-baseline justify-between gap-3 pb-2 mb-2 border-b border-border/60">
         <span className="text-xs font-extrabold text-foreground tracking-tight">{row.monthFull}</span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">

@@ -56,6 +56,7 @@ const SelectValue = <T extends object>({
 
 const SelectTrigger = ({ className, children, ...props }: AriaButtonProps) => (
   <AriaButton
+    data-rac-select-trigger
     className={composeRenderProps(className, (className) =>
       cn(
         "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",

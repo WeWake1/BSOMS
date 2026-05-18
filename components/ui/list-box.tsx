@@ -12,7 +12,7 @@ import {
   composeRenderProps,
 } from "react-aria-components"
 
-import { cn } from "@/lib/utils"
+import { cn, glass } from "@/lib/utils"
 
 const ListBoxSection = AriaSection
 
@@ -27,7 +27,8 @@ function ListBox<T extends object>({
       className={composeRenderProps(className, (className) =>
         cn(
           className,
-          "group overflow-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md outline-none",
+          glass.light,
+          "group overflow-auto rounded-md border p-1 text-popover-foreground shadow-md outline-none",
           /* Empty */
           "data-[empty]:p-6 data-[empty]:text-center data-[empty]:text-sm"
         )
@@ -54,8 +55,11 @@ const ListBoxItem = <T extends object>({
           "border-b border-border/40 last:border-b-0",
           /* Disabled */
           "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-          /* Focused / Hovered */
-          "data-[focused]:bg-primary/8 data-[focused]:text-primary",
+          /* Keyboard focus (visible only) / Pointer hover.
+             Using data-[focus-visible] instead of data-[focused] avoids the
+             "sticky blue" effect where the last hovered item retains its
+             focus highlight after the pointer leaves the dropdown. */
+          "data-[focus-visible]:bg-primary/8 data-[focus-visible]:text-primary",
           "data-[hovered]:bg-muted data-[hovered]:text-foreground",
           /* Selected */
           "data-[selected]:bg-primary/10 data-[selected]:text-primary data-[selected]:font-semibold",

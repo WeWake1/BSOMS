@@ -34,7 +34,22 @@ export default function RootLayout({
         className={`${plusJakarta.variable} font-sans transition-colors duration-200`}
       >
         {children}
-        <Toaster position="bottom-right" toastOptions={{ style: { marginBottom: '80px' } }} />
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              marginBottom: '80px',
+              background: 'color-mix(in oklch, var(--card) 95%, transparent)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid var(--border)',
+              color: 'var(--foreground)',
+              boxShadow: '0 8px 24px -8px rgb(0 0 0 / 0.18)',
+              borderRadius: '12px',
+              fontWeight: 600,
+            },
+          }}
+        />
       </body>
     </html>
   );

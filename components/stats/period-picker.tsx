@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { cn } from '@/lib/utils';
+import { createPortal } from 'react-dom';
+import { cn, glass } from '@/lib/utils';
 import {
   buildPeriod, toISODate, addDays, toMonthKey, addMonths, parseMonthKey, monthLabel,
   type Period, type PeriodPreset,
@@ -23,16 +24,54 @@ export function PeriodPicker({ period, onChange }: Props) {
   const [customTo, setCustomTo] = useState(period.to);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close any open dropdown when clicking outside
+  // Refs + position for portaled dropdowns (kept out of the sticky parent's
+  // backdrop-filter root so child blur reaches page content).
+  const monthBtnRef = useRef<HTMLButtonElement>(null);
+  const yearBtnRef = useRef<HTMLButtonElement>(null);
+  const customBtnRef = useRef<HTMLButtonElement>(null);
+  const dropdownPanelRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+
+  const toggleDropdown = (key: 'month' | 'year' | 'custom') => {
+    if (openDropdown === key) {
+      setOpenDropdown(null);
+      return;
+    }
+    const ref = key === 'month' ? monthBtnRef : key === 'year' ? yearBtnRef : customBtnRef;
+    if (ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      const panelWidth = key === 'month' ? 180 : key === 'year' ? 140 : 280;
+      const margin = 8;
+      let left = key === 'custom' ? r.right - panelWidth : r.left;
+      if (typeof window !== 'undefined') {
+        left = Math.max(margin, Math.min(left, window.innerWidth - panelWidth - margin));
+      }
+      setDropdownPos({ top: r.bottom + 8, left });
+    }
+    setOpenDropdown(key);
+  };
+
+  // Close any open dropdown when clicking outside, or when the page scrolls
+  // (mirrors react-aria Select's behaviour for Status/Date filters).
   useEffect(() => {
     if (!openDropdown) return;
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpenDropdown(null);
-      }
+    const clickHandler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const insideTrigger = containerRef.current?.contains(target);
+      const insideDropdown = dropdownPanelRef.current?.contains(target);
+      if (!insideTrigger && !insideDropdown) setOpenDropdown(null);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const scrollHandler = (e: Event) => {
+      const target = e.target as Node;
+      if (dropdownPanelRef.current?.contains(target)) return;
+      setOpenDropdown(null);
+    };
+    document.addEventListener('mousedown', clickHandler);
+    window.addEventListener('scroll', scrollHandler, true);
+    return () => {
+      document.removeEventListener('mousedown', clickHandler);
+      window.removeEventListener('scroll', scrollHandler, true);
+    };
   }, [openDropdown]);
 
   const today = useMemo(() => new Date(), []);
@@ -90,7 +129,7 @@ export function PeriodPicker({ period, onChange }: Props) {
   return (
     <div
       ref={containerRef}
-      className="sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-3 pb-3 bg-background/85 backdrop-blur-md border-b border-border/50"
+      className={cn(glass.medium, "sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-3 pb-3 border-b border-border/50")}
     >
       <div className="flex items-center gap-1.5 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
@@ -102,121 +141,127 @@ export function PeriodPicker({ period, onChange }: Props) {
             Week
           </button>
 
-          {/* Month — pill + chevron dropdown */}
-          <div className="relative shrink-0">
-            <button
-              onClick={() => {
-                if (!isMonthActive) onChange(buildPeriod('month'));
-                setOpenDropdown(openDropdown === 'month' ? null : 'month');
-              }}
-              className={cn(pillBase, 'pl-3.5 pr-2.5', isMonthActive ? pillActive : pillInactive)}
-            >
-              <span>
-                {isMonthActive
-                  ? parseMonthKey(selectedMonthKey).toLocaleDateString('en-US', { month: 'short', year: selectedMonthKey.slice(0, 4) === String(currentYear) ? undefined : '2-digit' })
-                  : 'Month'}
-              </span>
-              <Chevron open={openDropdown === 'month'} />
-            </button>
-
-            {openDropdown === 'month' && (
-              <div className="absolute left-0 top-full mt-2 w-[180px] bg-card border border-border rounded-2xl shadow-xl p-1.5 z-40 animate-in fade-in zoom-in-95 duration-150 max-h-[280px] overflow-y-auto">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Select month</p>
-                {monthOptions.map(mKey => {
-                  const isSelected = isMonthActive && mKey === selectedMonthKey;
-                  const isCurrent = mKey === currentMonthKey;
-                  return (
-                    <button
-                      key={mKey}
-                      onClick={() => { onChange(buildPeriod('month', { monthKey: mKey })); setOpenDropdown(null); }}
-                      className={cn(
-                        'w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between',
-                        isSelected
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-foreground hover:bg-muted',
-                      )}
-                    >
-                      <span>
-                        {parseMonthKey(mKey).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                      </span>
-                      {isCurrent && (
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Now</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Year — pill + chevron dropdown */}
-          <div className="relative shrink-0">
-            <button
-              onClick={() => {
-                if (!isYearActive) onChange(buildPeriod('year'));
-                setOpenDropdown(openDropdown === 'year' ? null : 'year');
-              }}
-              className={cn(pillBase, 'pl-3.5 pr-2.5', isYearActive ? pillActive : pillInactive)}
-            >
-              <span>{isYearActive ? selectedYear : 'Year'}</span>
-              <Chevron open={openDropdown === 'year'} />
-            </button>
-
-            {openDropdown === 'year' && (
-              <div className="absolute left-0 top-full mt-2 w-[140px] bg-card border border-border rounded-2xl shadow-xl p-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
-                <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Select year</p>
-                {yearOptions.map(yr => {
-                  const isSelected = isYearActive && yr === selectedYear;
-                  const isCurrent = yr === currentYear;
-                  return (
-                    <button
-                      key={yr}
-                      onClick={() => { onChange(buildPeriod('year', { year: yr })); setOpenDropdown(null); }}
-                      className={cn(
-                        'w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between',
-                        isSelected
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-foreground hover:bg-muted',
-                      )}
-                    >
-                      <span>{yr}</span>
-                      {isCurrent && (
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Now</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Custom — outside scroll context so popover renders correctly */}
-        <div className="relative shrink-0">
+          {/* Month — pill + chevron, dropdown portaled */}
           <button
+            ref={monthBtnRef}
             onClick={() => {
-              setCustomFrom(period.from);
-              setCustomTo(period.to);
-              setOpenDropdown(openDropdown === 'custom' ? null : 'custom');
+              if (!isMonthActive) onChange(buildPeriod('month'));
+              toggleDropdown('month');
             }}
-            className={cn(pillBase, 'px-3.5', isCustomActive ? pillActive : pillInactive)}
+            className={cn(pillBase, 'pl-3.5 pr-2.5 shrink-0', isMonthActive ? pillActive : pillInactive)}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            <span className="hidden sm:inline">
-              {isCustomActive ? `${period.from} → ${period.to}` : 'Custom'}
+            <span>
+              {isMonthActive
+                ? parseMonthKey(selectedMonthKey).toLocaleDateString('en-US', { month: 'short', year: selectedMonthKey.slice(0, 4) === String(currentYear) ? undefined : '2-digit' })
+                : 'Month'}
             </span>
-            <span className="sm:hidden">
-              {isCustomActive ? `${period.from.slice(5)}→${period.to.slice(5)}` : 'Custom'}
-            </span>
+            <Chevron open={openDropdown === 'month'} />
           </button>
 
+          {/* Year — pill + chevron, dropdown portaled */}
+          <button
+            ref={yearBtnRef}
+            onClick={() => {
+              if (!isYearActive) onChange(buildPeriod('year'));
+              toggleDropdown('year');
+            }}
+            className={cn(pillBase, 'pl-3.5 pr-2.5 shrink-0', isYearActive ? pillActive : pillInactive)}
+          >
+            <span>{isYearActive ? selectedYear : 'Year'}</span>
+            <Chevron open={openDropdown === 'year'} />
+          </button>
+        </div>
+
+        {/* Custom — dropdown portaled */}
+        <button
+          ref={customBtnRef}
+          onClick={() => {
+            setCustomFrom(period.from);
+            setCustomTo(period.to);
+            toggleDropdown('custom');
+          }}
+          className={cn(pillBase, 'px-3.5 shrink-0', isCustomActive ? pillActive : pillInactive)}
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <span className="hidden sm:inline">
+            {isCustomActive ? `${period.from} → ${period.to}` : 'Custom'}
+          </span>
+          <span className="sm:hidden">
+            {isCustomActive ? `${period.from.slice(5)}→${period.to.slice(5)}` : 'Custom'}
+          </span>
+        </button>
+      </div>
+
+      {/* Portaled dropdowns — escape the sticky bar's backdrop-filter root so
+          their own backdrop-blur reaches page content underneath. */}
+      {typeof document !== 'undefined' && openDropdown && createPortal(
+        <div
+          ref={dropdownPanelRef}
+          style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
+        >
+          {openDropdown === 'month' && (
+            <div className={cn(glass.light, "w-[180px] border border-border rounded-2xl shadow-xl p-1.5 max-h-[280px] overflow-y-auto animate-in fade-in zoom-in-95 duration-150")}>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Select month</p>
+              {monthOptions.map(mKey => {
+                const isSelected = isMonthActive && mKey === selectedMonthKey;
+                const isCurrent = mKey === currentMonthKey;
+                return (
+                  <button
+                    key={mKey}
+                    onClick={() => { onChange(buildPeriod('month', { monthKey: mKey })); setOpenDropdown(null); }}
+                    className={cn(
+                      'w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between',
+                      isSelected
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-foreground hover:bg-muted',
+                    )}
+                  >
+                    <span>
+                      {parseMonthKey(mKey).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    </span>
+                    {isCurrent && (
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Now</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {openDropdown === 'year' && (
+            <div className={cn(glass.light, "w-[140px] border border-border rounded-2xl shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-150")}>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Select year</p>
+              {yearOptions.map(yr => {
+                const isSelected = isYearActive && yr === selectedYear;
+                const isCurrent = yr === currentYear;
+                return (
+                  <button
+                    key={yr}
+                    onClick={() => { onChange(buildPeriod('year', { year: yr })); setOpenDropdown(null); }}
+                    className={cn(
+                      'w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center justify-between',
+                      isSelected
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-foreground hover:bg-muted',
+                    )}
+                  >
+                    <span>{yr}</span>
+                    {isCurrent && (
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Now</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {openDropdown === 'custom' && (
-            <div className="absolute right-0 top-full mt-2 w-[280px] bg-card border border-border rounded-2xl shadow-xl p-4 z-40 animate-in fade-in zoom-in-95 duration-150">
+            <div className={cn(glass.light, "w-[280px] border border-border rounded-2xl shadow-xl p-4 animate-in fade-in zoom-in-95 duration-150")}>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Quick</p>
               <button
                 onClick={applyLast6Months}
@@ -271,9 +316,9 @@ export function PeriodPicker({ period, onChange }: Props) {
               </div>
             </div>
           )}
-        </div>
-      </div>
-
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -7,6 +7,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Frosted-glass class presets, indexed by surface size.
+ * Use with cn() so further classes can override / extend.
+ *
+ *   light   — small floats: tooltips, popovers, dropdowns, autocompletes
+ *   medium  — sticky / fixed bars: top toolbars, bottom action bars
+ *   heavy   — large content panels (sheets, modal panels)
+ *
+ * Each preset is JUST the background + backdrop-blur. Borders, shadows,
+ * radius and padding stay in the caller so each surface can size itself.
+ */
+export const glass = {
+  light: 'bg-card/95 backdrop-blur-md',
+  medium: 'bg-background/80 backdrop-blur-xl',
+  heavy: 'bg-card/90 backdrop-blur-lg',
+} as const;
+
 export function formatDate(date: string | null | undefined): string {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('en-IN', {

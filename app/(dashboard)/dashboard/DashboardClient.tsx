@@ -16,7 +16,7 @@ import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
 import { ChatPanel } from '@/components/dashboard/chat-panel';
 import { generateOrderReportPDF } from '@/lib/pdf-export';
 import { createClient } from '@/lib/supabase/client';
-import { formatDate, formatInches, cn } from '@/lib/utils';
+import { formatDate, formatInches, cn, glass } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import type { AuthUser } from '@/lib/auth';
 import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
@@ -336,7 +336,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   className="fixed inset-0 z-40" 
                   onClick={() => setIsExportMenuOpen(false)}
                 />
-                <div className="absolute right-0 top-full mt-1 min-w-[130px] w-max bg-card border border-border rounded-xl shadow-lg z-50 p-1 flex flex-col animate-in fade-in zoom-in-95 duration-100 hidden-from-print">
+                <div className={cn(glass.light, "absolute right-0 top-full mt-1 min-w-[130px] w-max border border-border rounded-xl shadow-lg z-50 p-1 flex flex-col animate-in fade-in zoom-in-95 duration-100 hidden-from-print")}>
                   <button
                     onClick={() => {
                       setIsExportMenuOpen(false);
@@ -478,7 +478,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
       {/* Multi-select action bar */}
       {isSelectMode && (
-        <div ref={actionBarRef} className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-200">
+        <div ref={actionBarRef} className={cn(glass.medium, "fixed bottom-0 left-0 right-0 z-50 border-t border-border shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-2 duration-200")}>
           <button onClick={exitSelectMode} className="text-sm font-bold text-primary hover:text-primary/80 px-3 py-2 rounded-xl hover:bg-primary/10 transition-colors whitespace-nowrap">
             Done
           </button>
@@ -525,14 +525,14 @@ export function DashboardClient({ user }: { user: AuthUser }) {
             <div className="flex flex-col gap-1.5 items-end animate-in fade-in zoom-in-95 duration-150">
               <button
                 onClick={() => { setShowFabMenu(false); setSelectedOrderId(null); setIsFormOpen(true); }}
-                className="flex items-center gap-2.5 bg-card text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors"
+                className={cn(glass.light, "flex items-center gap-2.5 text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted/80 transition-colors")}
               >
                 <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Single Order
               </button>
               <button
                 onClick={() => { setShowFabMenu(false); setIsBulkOpen(true); }}
-                className="flex items-center gap-2.5 bg-card text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted transition-colors"
+                className={cn(glass.light, "flex items-center gap-2.5 text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted/80 transition-colors")}
               >
                 <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
                 Add Multiple Orders
