@@ -114,6 +114,22 @@ create trigger on_auth_user_created
   for each row execute procedure handle_new_user();
 ```
 
+#### Grant Data API Access
+> Required as of Supabase's Oct 30, 2026 change — new tables in `public` are no longer auto-exposed to the Data API. RLS policies don't run unless the table-level GRANTs exist first.
+
+OrderFlow is auth-only (no anonymous access), so we grant to `authenticated` and `service_role` only. RLS policies below further restrict writes to admins.
+
+```sql
+-- Grant table access to authenticated users (RLS restricts writes to admins)
+grant select, insert, update, delete on categories    to authenticated;
+grant select, insert, update, delete on orders        to authenticated;
+grant select, insert, update, delete on order_items   to authenticated;
+grant select, update                  on profiles     to authenticated;
+
+-- Service role bypasses RLS (used by server-side code with the service key)
+grant all on categories, orders, order_items, profiles to service_role;
+```
+
 #### Enable Row Level Security (RLS)
 Still in SQL Editor, run:
 

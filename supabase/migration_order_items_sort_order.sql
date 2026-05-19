@@ -44,10 +44,17 @@ CREATE TRIGGER set_order_items_updated_at
   BEFORE UPDATE ON order_items
   FOR EACH ROW EXECUTE FUNCTION update_order_items_updated_at();
 
--- 4. Row Level Security (enable is idempotent)
+-- 4. Grant Data API access (idempotent — re-running is safe)
+-- Required as of Supabase's Oct 30, 2026 change — new tables in `public`
+-- are no longer auto-exposed to the Data API. The RLS policies below do
+-- nothing unless these table-level GRANTs exist first.
+GRANT SELECT, INSERT, UPDATE, DELETE ON order_items TO authenticated;
+GRANT ALL ON order_items TO service_role;
+
+-- 5. Row Level Security (enable is idempotent)
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 
--- 5. Policies — drop first so re-running is safe
+-- 6. Policies — drop first so re-running is safe
 DROP POLICY IF EXISTS "Viewers can read order_items" ON order_items;
 DROP POLICY IF EXISTS "Admins can insert order_items" ON order_items;
 DROP POLICY IF EXISTS "Admins can update order_items" ON order_items;
@@ -79,5 +86,5 @@ CREATE POLICY "Admins can delete order_items"
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
--- 6. Enable Realtime
+-- 7. Enable Realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE order_items;
