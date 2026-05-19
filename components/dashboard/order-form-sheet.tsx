@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
 import type { OrderWithCategoryAndItems, Category, OrderStatus } from '@/types/database';
 import toast from 'react-hot-toast';
-import { formatInches } from '@/lib/utils';
+import { formatInches, sanitizeMobileInput, isValidIndianMobile } from '@/lib/utils';
 
 /**
  * Dimensions are stored as raw text — just trim and return as-is.
@@ -28,9 +28,10 @@ interface OrderFormSheetProps {
   categories: Category[];
   isOpen: boolean;
   onClose: () => void;
+  customerMobileLookup?: Map<string, string>;
 }
 
-export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderFormSheetProps) {
+export function OrderFormSheet({ order, categories, isOpen, onClose, customerMobileLookup }: OrderFormSheetProps) {
   // M10: stable supabase client via useState to avoid useEffect dependency issues
   const [supabase] = useState(() => createClient());
 
@@ -57,6 +58,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
   // Form State
   const [orderNo, setOrderNo] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [mobileNo, setMobileNo] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [date, setDate] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -72,6 +74,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       if (order) {
         setOrderNo(order.order_no);
         setCustomerName(order.customer_name);
+        setMobileNo(order.mobile_no || '');
         setCategoryId(order.category_id);
         setDate(order.date);
         setDueDate(order.due_date);
@@ -111,6 +114,7 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
 
         setOrderNo('');
         setCustomerName('');
+        setMobileNo('');
         setCategoryId(categories[0]?.id || '');
         setDate(today.toISOString().split('T')[0]);
         setDueDate(nextWeek.toISOString().split('T')[0]);
@@ -250,11 +254,18 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
       toast.error("A photo or voice note is still uploading. Please wait a moment and try again.");
       return;
     }
+
+    if (mobileNo && !isValidIndianMobile(mobileNo)) {
+      toast.error("Mobile number must be exactly 10 digits.");
+      return;
+    }
+
     setLoading(true);
 
     const orderPayload = {
       order_no: orderNo.trim(),
       customer_name: customerName.trim(),
+      mobile_no: mobileNo || null,
       category_id: categoryId,
       date,
       due_date: dueDate,
@@ -294,9 +305,34 @@ export function OrderFormSheet({ order, categories, isOpen, onClose }: OrderForm
     <Drawer isOpen={isOpen} onClose={onClose} title={order ? 'Edit Order' : 'New Order'}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5 pt-2 pb-6">
 
+        <Input label="Order No" id="order_no" value={orderNo} onChange={e => setOrderNo(e.target.value)} required />
+
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Order No" id="order_no" value={orderNo} onChange={e => setOrderNo(e.target.value)} required />
-          <Input label="Customer Name" id="customer_name" value={customerName} onChange={e => setCustomerName(e.target.value)} required />
+          <Input
+            label="Customer Name"
+            id="customer_name"
+            value={customerName}
+            onChange={e => setCustomerName(e.target.value)}
+            onBlur={() => {
+              const name = customerName.trim().toLowerCase();
+              if (!order && !mobileNo && name && customerMobileLookup?.has(name)) {
+                setMobileNo(customerMobileLookup.get(name) || '');
+              }
+            }}
+            required
+          />
+          <Input
+            label="Mobile No"
+            id="mobile_no"
+            type="tel"
+            inputMode="numeric"
+            placeholder="10-digit number"
+            value={mobileNo}
+            onChange={e => setMobileNo(sanitizeMobileInput(e.target.value))}
+            maxLength={15}
+            hint={mobileNo && !isValidIndianMobile(mobileNo) ? undefined : '+91 added automatically'}
+            error={mobileNo && !isValidIndianMobile(mobileNo) ? 'Must be 10 digits' : undefined}
+          />
         </div>
 
         {/* Category field — M1: tokens, L6: sr-only required, C1: replaced window.prompt with inline UI */}

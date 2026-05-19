@@ -42,6 +42,38 @@ export function formatInches(val: string | number | null | undefined): string {
   return String(val);
 }
 
+/**
+ * Strip everything except digits, then drop a leading 91 if total is 12 digits,
+ * then cap at 10. Stored value is always 10 digits or '' (empty).
+ *
+ * Examples:
+ *   '+91 97414 05332' → '9741405332'
+ *   '919741405332'    → '9741405332'
+ *   '9741405332'      → '9741405332'
+ *   '974'             → '974'  (partial — caller decides if it's valid)
+ */
+export function sanitizeMobileInput(raw: string): string {
+  let digits = (raw || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits.slice(0, 10);
+}
+
+export function isValidIndianMobile(val: string | null | undefined): boolean {
+  return !!val && /^\d{10}$/.test(val);
+}
+
+export function buildWhatsAppUrl(mobile: string | null | undefined): string | null {
+  if (!isValidIndianMobile(mobile)) return null;
+  return `https://wa.me/+91${mobile}`;
+}
+
+export function formatMobileDisplay(val: string | null | undefined): string {
+  if (!val) return '—';
+  if (/^\d{10}$/.test(val)) return `+91 ${val.slice(0, 5)} ${val.slice(5)}`;
+  return val;
+}
+
 export function getStatusColor(status: OrderStatus | string): string {
   const colors: Record<string, string> = {
     'Pending': 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400 border-amber-200 dark:border-amber-800',

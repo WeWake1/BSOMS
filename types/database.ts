@@ -11,6 +11,7 @@ export interface Order {
   id: string;
   order_no: string;
   customer_name: string;
+  mobile_no: string | null;
   category_id: string;
   date: string;
   due_date: string;

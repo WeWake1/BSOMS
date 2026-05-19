@@ -32,7 +32,10 @@
       "Bash(node -e \"require\\('sharp'\\); console.log\\('sharp available'\\)\")",
       "Bash(python3 -c \"from PIL import Image; print\\('PIL available'\\)\")",
       "Bash(npx next *)",
-      "Bash(npx shadcn@latest add \"https://21st.dev/r/reaviz/stacked-bar\" --yes)"
+      "Bash(npx shadcn@latest add \"https://21st.dev/r/reaviz/stacked-bar\" --yes)",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql"
     ]
   },
   "enableAllProjectMcpServers": true,

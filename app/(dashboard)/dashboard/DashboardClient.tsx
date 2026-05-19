@@ -169,6 +169,28 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     return orders.filter(o => { const n = o.customer_name; if (seen.has(n)) return false; seen.add(n); return true; }).map(o => o.customer_name);
   }, [orders]);
 
+  // ── Customer-name → mobile lookup (latest order wins) ────────────────────
+  const customerMobileLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    // Iterate oldest-first so newest entries overwrite (orders array is already date-desc; reverse)
+    for (let i = orders.length - 1; i >= 0; i--) {
+      const o = orders[i];
+      if (o.mobile_no) map.set(o.customer_name.trim().toLowerCase(), o.mobile_no);
+    }
+    return map;
+  }, [orders]);
+
+  // ── Desktop / mobile detection for split FAB ─────────────────────────────
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     if (newStatus === 'Dispatched') {
       setDispatchPromptOrder(orderId);
@@ -517,48 +539,83 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         </div>
       )}
 
-      {/* FAB (Admin Only) — long-press for menu, tap for single add */}
+      {/* FAB (Admin Only) — desktop: two separate FABs, mobile: single + long-press menu */}
       {isAdmin && !isSelectMode && (
-        <div className="fab-area fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
-          {/* FAB menu */}
-          {showFabMenu && (
-            <div className="flex flex-col gap-1.5 items-end animate-in fade-in zoom-in-95 duration-150">
-              <button
-                onClick={() => { setShowFabMenu(false); setSelectedOrderId(null); setIsFormOpen(true); }}
-                className={cn(glass.light, "flex items-center gap-2.5 text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted/80 transition-colors")}
-              >
-                <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add Single Order
-              </button>
-              <button
-                onClick={() => { setShowFabMenu(false); setIsBulkOpen(true); }}
-                className={cn(glass.light, "flex items-center gap-2.5 text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted/80 transition-colors")}
-              >
-                <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        isDesktop ? (
+          <div className="fab-area fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
+            <button
+              onClick={() => setIsBulkOpen(true)}
+              className="group relative bg-card text-foreground border border-border w-12 h-12 rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring"
+              aria-label="Add Multiple Orders"
+            >
+              {/* Overlapping plus signs icon */}
+              <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                {/* Back plus (slightly offset, lighter feel via lower opacity) */}
+                <g opacity="0.55">
+                  <line x1="15" y1="4" x2="15" y2="14" />
+                  <line x1="10" y1="9" x2="20" y2="9" />
+                </g>
+                {/* Front plus */}
+                <line x1="9" y1="10" x2="9" y2="20" />
+                <line x1="4" y1="15" x2="14" y2="15" />
+              </svg>
+              <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 whitespace-nowrap text-xs font-semibold bg-foreground text-background px-2.5 py-1.5 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
                 Add Multiple Orders
-              </button>
-            </div>
-          )}
-          <button
-            ref={fabRef}
-            className={cn(
-              "bg-primary text-primary-foreground w-14 h-14 rounded-full flex items-center justify-center shadow-[0_4px_20px_-2px_var(--primary)] hover:shadow-[0_8px_32px_-4px_var(--primary)] hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring min-tap",
-              showFabMenu && "rotate-45"
+              </span>
+            </button>
+            <button
+              onClick={() => { setSelectedOrderId(null); setIsFormOpen(true); }}
+              className="group relative bg-primary text-primary-foreground w-14 h-14 rounded-full flex items-center justify-center shadow-[0_4px_20px_-2px_var(--primary)] hover:shadow-[0_8px_32px_-4px_var(--primary)] hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring"
+              aria-label="Add Single Order"
+            >
+              <svg className="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 whitespace-nowrap text-xs font-semibold bg-foreground text-background px-2.5 py-1.5 rounded-md opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">
+                Add Single Order
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div className="fab-area fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
+            {/* FAB menu */}
+            {showFabMenu && (
+              <div className="flex flex-col gap-1.5 items-end animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  onClick={() => { setShowFabMenu(false); setSelectedOrderId(null); setIsFormOpen(true); }}
+                  className={cn(glass.light, "flex items-center gap-2.5 text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted/80 transition-colors")}
+                >
+                  <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Add Single Order
+                </button>
+                <button
+                  onClick={() => { setShowFabMenu(false); setIsBulkOpen(true); }}
+                  className={cn(glass.light, "flex items-center gap-2.5 text-foreground border border-border rounded-2xl shadow-lg px-4 py-2.5 text-sm font-semibold hover:bg-muted/80 transition-colors")}
+                >
+                  <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                  Add Multiple Orders
+                </button>
+              </div>
             )}
-            onClick={() => {
-              if (showFabMenu) { setShowFabMenu(false); return; }
-              setSelectedOrderId(null); setIsFormOpen(true);
-            }}
-            onPointerDown={handleFabPointerDown}
-            onPointerUp={handleFabPointerUp}
-            onPointerLeave={handleFabPointerUp}
-            onContextMenu={e => { e.preventDefault(); setShowFabMenu(true); }}
-            aria-label="Add Order"
-          >
-            <svg className="w-6 h-6 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span className="sr-only">Add Order</span>
-          </button>
-        </div>
+            <button
+              ref={fabRef}
+              className={cn(
+                "bg-primary text-primary-foreground w-14 h-14 rounded-full flex items-center justify-center shadow-[0_4px_20px_-2px_var(--primary)] hover:shadow-[0_8px_32px_-4px_var(--primary)] hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring min-tap",
+                showFabMenu && "rotate-45"
+              )}
+              onClick={() => {
+                if (showFabMenu) { setShowFabMenu(false); return; }
+                setSelectedOrderId(null); setIsFormOpen(true);
+              }}
+              onPointerDown={handleFabPointerDown}
+              onPointerUp={handleFabPointerUp}
+              onPointerLeave={handleFabPointerUp}
+              onContextMenu={e => { e.preventDefault(); setShowFabMenu(true); }}
+              aria-label="Add Order"
+            >
+              <svg className="w-6 h-6 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span className="sr-only">Add Order</span>
+            </button>
+          </div>
+        )
       )}
 
       <OrderDetailSheet 
@@ -574,12 +631,15 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         categories={categories}
         isOpen={isFormOpen}
         onClose={() => { setIsFormOpen(false); setSelectedOrderId(null); }}
+        customerMobileLookup={customerMobileLookup}
       />
 
       <BulkOrderSheet
         isOpen={isBulkOpen}
         onClose={() => setIsBulkOpen(false)}
         categories={categories}
+        existingCustomerNames={allCustomerNames}
+        customerMobileLookup={customerMobileLookup}
       />
 
       <SettingsDrawer
