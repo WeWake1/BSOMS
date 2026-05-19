@@ -407,17 +407,17 @@ export function BulkOrderSheet({ isOpen, onClose, categories, existingCustomerNa
             <thead className="sticky top-0 z-10">
               <tr className="bg-muted/90 backdrop-blur border-b border-border text-muted-foreground text-[11px] font-bold uppercase tracking-wider">
                 <th className="px-3 py-2.5 text-left border-r border-border w-8">#</th>
-                <th className="px-2 py-2.5 text-left border-r border-border min-w-[90px]">Order No *</th>
-                <th className="px-2 py-2.5 text-left border-r border-border min-w-[150px]">Customer *</th>
+                <th className="px-2 py-2.5 text-left border-r border-border min-w-[54px] whitespace-nowrap">Order #*</th>
+                <th className="px-2 py-2.5 text-left border-r border-border min-w-[170px]">Customer *</th>
                 <th className="px-2 py-2.5 text-left border-r border-border min-w-[120px]">Mobile</th>
                 <th className="px-2 py-2.5 text-left border-r border-border min-w-[130px]">Category *</th>
                 <th className="px-2 py-2.5 text-left border-r border-border min-w-[110px]">Order Date</th>
                 <th className="px-2 py-2.5 text-left border-r border-border min-w-[110px]">Due Date</th>
-                <th className="px-2 py-2.5 text-left border-r border-border min-w-[64px]">Length</th>
-                <th className="px-2 py-2.5 text-left border-r border-border min-w-[64px]">Width</th>
+                <th className="px-2 py-2.5 text-left border-r border-border min-w-[38px]">Length</th>
+                <th className="px-2 py-2.5 text-left border-r border-border min-w-[38px]">Width</th>
                 <th className="px-2 py-2.5 text-left border-r border-border min-w-[52px]">Qty</th>
                 <th className="px-2 py-2.5 text-left border-r border-border min-w-[120px]">Status</th>
-                <th className="px-2 py-2.5 text-left border-r border-border min-w-[200px]">Description</th>
+                <th className="px-2 py-2.5 text-left border-r border-border min-w-[280px]">Description</th>
                 <th className="px-2 py-2.5 text-left border-r border-border min-w-[90px]">Attach</th>
                 <th className="px-2 py-2.5 text-left min-w-[40px]"></th>
               </tr>
@@ -429,7 +429,7 @@ export function BulkOrderSheet({ isOpen, onClose, categories, existingCustomerNa
                 return (
                   <tr key={row.id} className={cn("group hover:bg-muted/20 transition-colors", isComplete && "bg-primary/[0.03]")}>
                     <td className="px-3 py-1 text-[11px] font-bold text-muted-foreground border-r border-border w-8 text-center">{idx + 1}</td>
-                    <td className="border-r border-border p-0"><input className={CELL} placeholder="e.g. ORD-001" value={row.order_no} onChange={e => updateRow(row.id, { order_no: e.target.value })} /></td>
+                    <td className="border-r border-border p-0"><input className={CELL} placeholder="ORD-001" value={row.order_no} onChange={e => updateRow(row.id, { order_no: e.target.value })} /></td>
                     <td className="border-r border-border p-0">
                       <CustomerNameCell
                         value={row.customer_name}
@@ -457,8 +457,8 @@ export function BulkOrderSheet({ isOpen, onClose, categories, existingCustomerNa
                     </td>
                     <td className="border-r border-border p-0"><input type="date" className={CELL} value={row.date} onChange={e => updateRow(row.id, { date: e.target.value })} /></td>
                     <td className="border-r border-border p-0"><input type="date" className={CELL} value={row.due_date} onChange={e => updateRow(row.id, { due_date: e.target.value })} /></td>
-                    <td className="border-r border-border p-0"><input className={CELL} placeholder='e.g. 33"1' value={row.length} onChange={e => updateRow(row.id, { length: e.target.value })} /></td>
-                    <td className="border-r border-border p-0"><input className={CELL} placeholder='e.g. 14"9' value={row.width} onChange={e => updateRow(row.id, { width: e.target.value })} /></td>
+                    <td className="border-r border-border p-0"><input className={CELL} placeholder='33"1' value={row.length} onChange={e => updateRow(row.id, { length: e.target.value })} /></td>
+                    <td className="border-r border-border p-0"><input className={CELL} placeholder='14"9' value={row.width} onChange={e => updateRow(row.id, { width: e.target.value })} /></td>
                     <td className="border-r border-border p-0"><input type="number" min="1" className={CELL} value={row.qty} onChange={e => updateRow(row.id, { qty: e.target.value })} /></td>
                     <td className="border-r border-border p-0">
                       <select className={SELECT_CELL} value={row.status} onChange={e => updateRow(row.id, { status: e.target.value as OrderStatus })}>
