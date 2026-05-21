@@ -65,6 +65,26 @@ export async function requireAdmin(): Promise<AuthUser> {
 }
 
 /**
+ * Require admin OR staff role (anyone who can change order status).
+ * Redirects to /dashboard if viewer; /login if not authenticated.
+ */
+export async function requireStaffOrAdmin(): Promise<AuthUser> {
+  const user = await requireAuth();
+  if (user.profile.role === 'viewer') redirect('/dashboard');
+  return user;
+}
+
+/** Can this user change order status (admin or staff)? */
+export function canChangeStatus(profile: Profile): boolean {
+  return profile.role === 'admin' || profile.role === 'staff';
+}
+
+/** Can this user fully edit/delete orders (admin only)? */
+export function canEditOrders(profile: Profile): boolean {
+  return profile.role === 'admin';
+}
+
+/**
  * Redirect to /dashboard if already authenticated.
  * Use on the login page.
  */

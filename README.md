@@ -63,10 +63,14 @@ create table orders (
 );
 
 -- Profiles table (role management)
+-- Three role tiers:
+--   admin  — full CRUD on orders + categories, sees Activity Log
+--   staff  — read everything, change order status only (via update_order_status RPC)
+--   viewer — read-only
 create table profiles (
   id uuid references auth.users(id) primary key,
   full_name text,
-  role text not null check (role in ('admin', 'viewer'))
+  role text not null check (role in ('admin', 'viewer', 'staff'))
 );
 
 -- Order items table (sub-orders within a single order)
@@ -252,15 +256,34 @@ npm run dev
 # Open http://localhost:3000
 ```
 
-## Creating the First Admin User
+## Roles
 
-> ⚠️ New signups default to `viewer` role. You must manually promote the first admin.
+| Role     | Capabilities |
+|----------|---|
+| `admin`  | Full CRUD on orders + categories. Sees the Activity Log under Settings. |
+| `staff`  | Read-only on everything **except** order status — they can change status (and dispatch date when marking Dispatched). Cannot create, edit, or delete orders. |
+| `viewer` | Read-only. |
 
-1. Open the app at `localhost:3000/login`
-2. Sign up with your admin email and password
-3. Go to **Supabase Dashboard → Table Editor → profiles**
-4. Find your user row, click edit, change `role` from `viewer` to `admin`
-5. ✅ You now have admin access — all subsequent features (CRUD, categories, etc.) unlocked
+Staff status changes route through the `update_order_status(uuid, order_status, date)` RPC. Admin updates use direct UPDATE (RLS allows it). Both paths are caught by the same DB trigger and logged to `order_activity_logs`.
+
+## Promoting Users
+
+> ⚠️ New signups default to `viewer` role. You must manually promote.
+
+1. User signs up via the app at `localhost:3000/login`
+2. Go to **Supabase Dashboard → Table Editor → profiles**
+3. Find the user row, click edit, change `role` to one of:
+   - `admin` — full access + Activity Log
+   - `staff` — can only change order status
+   - `viewer` — read-only (default)
+
+## Activity Log
+
+Every order create, status change, and delete is logged to `order_activity_logs`. The log is admin-only and viewable at `/logs` (entry point: Settings drawer → Activity Log). A per-order timeline is also available inside each order's detail sheet for admins.
+
+The log table denormalizes the order number, customer name, actor name, and role at the moment of the event — so entries stay readable even if the order or user is later deleted.
+
+See `supabase/migration_staff_role_audit.sql` for the schema, RPC, triggers, and RLS policies that ship the staff role + audit log together.
 
 ## Environment Variables
 

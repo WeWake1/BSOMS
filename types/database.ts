@@ -34,10 +34,28 @@ export interface OrderWithCategory extends Order {
 // Alias kept for backward compatibility — same shape as OrderWithCategory
 export type OrderWithCategoryAndItems = OrderWithCategory;
 
+export type UserRole = 'admin' | 'viewer' | 'staff';
+
 export interface Profile {
   id: string;
   full_name: string | null;
-  role: 'admin' | 'viewer';
+  role: UserRole;
+}
+
+export type OrderEventType = 'created' | 'status_changed' | 'deleted';
+
+export interface OrderActivityLog {
+  id: string;
+  event_type: OrderEventType;
+  order_id: string | null;
+  order_no: string | null;
+  customer_name: string | null;
+  from_status: OrderStatus | null;
+  to_status: OrderStatus | null;
+  changed_by: string | null;
+  changed_by_name: string | null;
+  changed_by_role: string | null;
+  changed_at: string;
 }
 
 export type Database = {
@@ -65,9 +83,18 @@ export type Database = {
         Insert: Profile;
         Update: Partial<Profile>;
       };
+      order_activity_logs: {
+        Row: OrderActivityLog;
+        Insert: Omit<OrderActivityLog, 'id' | 'changed_at'> & {
+          id?: string;
+          changed_at?: string;
+        };
+        Update: Partial<Omit<OrderActivityLog, 'id'>>;
+      };
     };
     Enums: {
       order_status: OrderStatus;
+      order_event_type: OrderEventType;
     };
   };
 };

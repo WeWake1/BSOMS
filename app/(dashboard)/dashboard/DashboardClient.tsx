@@ -52,6 +52,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
   const activeOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
 
   const isAdmin = user.profile.role === 'admin';
+  const canChangeStatus = isAdmin || user.profile.role === 'staff';
   const [supabase] = useState(() => createClient());
 
   // ── Multi-select helpers ─────────────────────────────────────────────────
@@ -198,8 +199,11 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       return;
     }
 
-    // @ts-ignore
-    const { error } = await supabase.from('orders').update({ status: newStatus, dispatch_date: null }).eq('id', orderId);
+    const { error } = await supabase.rpc('update_order_status', {
+      p_order_id: orderId,
+      p_new_status: newStatus,
+      p_dispatch_date: null,
+    } as any);
     if (error) {
       toast.error("Couldn't update the order status. Please try again.");
     } else {
@@ -209,8 +213,11 @@ export function DashboardClient({ user }: { user: AuthUser }) {
 
   const handleDispatchConfirm = async () => {
     if (!dispatchPromptOrder) return;
-    // @ts-ignore
-    const { error } = await supabase.from('orders').update({ status: 'Dispatched', dispatch_date: dispatchPromptDate }).eq('id', dispatchPromptOrder);
+    const { error } = await supabase.rpc('update_order_status', {
+      p_order_id: dispatchPromptOrder,
+      p_new_status: 'Dispatched',
+      p_dispatch_date: dispatchPromptDate,
+    } as any);
     if (error) {
       toast.error("Couldn't mark order as Dispatched. Please try again.");
     } else {
@@ -434,10 +441,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         ) : sortedOrders.length > 0 ? (
           viewMode === 'card' ? (
             sortedOrders.map(order => (
-              <OrderCard 
-                key={order.id} 
-                order={order} 
-                isAdmin={isAdmin}
+              <OrderCard
+                key={order.id}
+                order={order}
+                canChangeStatus={canChangeStatus}
                 onStatusChange={(status) => handleStatusChange(order.id, status)}
                 isNew={newIds.has(order.id)}
                 isFlash={flashIds.has(order.id)}
@@ -472,10 +479,10 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {sortedOrders.map(order => (
-                    <OrderListItem 
-                      key={order.id} 
-                      order={order} 
-                      isAdmin={isAdmin}
+                    <OrderListItem
+                      key={order.id}
+                      order={order}
+                      canChangeStatus={canChangeStatus}
                       onStatusChange={(status) => handleStatusChange(order.id, status)}
                       onClick={() => setSelectedOrderId(order.id)} 
                     />

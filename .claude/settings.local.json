@@ -35,7 +35,8 @@
       "Bash(npx shadcn@latest add \"https://21st.dev/r/reaviz/stacked-bar\" --yes)",
       "mcp__supabase__list_tables",
       "mcp__supabase__apply_migration",
-      "mcp__supabase__execute_sql"
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__get_advisors"
     ]
   },
   "enableAllProjectMcpServers": true,

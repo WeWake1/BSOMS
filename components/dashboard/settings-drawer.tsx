@@ -260,6 +260,29 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
           </Link>
         )}
 
+        {/* ── Activity Log (Admin only) ────────────── */}
+        {isAdmin && (
+          <Link
+            href="/logs"
+            onClick={onClose}
+            className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-foreground/15 transition-all duration-200 hover:shadow-sm flex items-center gap-3 p-3.5 min-tap"
+          >
+            <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 flex items-center justify-center shrink-0 relative z-10">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0 relative z-10">
+              <p className="text-sm font-bold text-foreground">Activity Log</p>
+              <p className="text-xs text-muted-foreground">Who changed what, and when</p>
+            </div>
+            <svg className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </Link>
+        )}
+
         {/* ── Dark Mode ────────────────────────────── */}
         {/* Dark Mode Toggle */}
         <div className="py-4 border-b border-border">

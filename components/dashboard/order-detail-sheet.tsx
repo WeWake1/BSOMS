@@ -8,6 +8,7 @@ import { formatDate, formatInches, buildWhatsAppUrl, formatMobileDisplay } from 
 import { createClient } from '@/lib/supabase/client';
 import type { OrderWithCategoryAndItems } from '@/types/database';
 import toast from 'react-hot-toast';
+import { OrderHistorySection } from './order-history-section';
 
 interface OrderDetailSheetProps {
   order: OrderWithCategoryAndItems | null;
@@ -229,6 +230,8 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
               </p>
             </div>
           )}
+
+          {isAdmin && <OrderHistorySection orderId={order.id} />}
 
           {isAdmin && (
             <div className="flex gap-3 mt-4 pt-4 border-t border-border">

@@ -8,7 +8,7 @@ import type { OrderStatus, OrderWithCategoryAndItems } from '@/types/database';
 
 interface OrderCardProps {
   order: OrderWithCategoryAndItems;
-  isAdmin?: boolean;
+  canChangeStatus?: boolean;
   onStatusChange?: (status: OrderStatus) => void;
   onClick?: () => void;
   onLongPress?: () => void;
@@ -22,7 +22,7 @@ interface OrderCardProps {
   isDetailOpen?: boolean;
 }
 
-export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress, className, isNew, isFlash, isSelectMode, isSelected, isDetailOpen }: OrderCardProps) {
+export function OrderCard({ order, canChangeStatus, onStatusChange, onClick, onLongPress, className, isNew, isFlash, isSelectMode, isSelected, isDetailOpen }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
 
   // Long-press to enter select mode
@@ -113,8 +113,8 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress
              </p>
           )}
         </div>
-        <div className="relative shrink-0 mt-0.5" onClick={(e) => isAdmin && !isSelectMode ? e.preventDefault() : null}>
-          {isAdmin && onStatusChange && !isSelectMode ? (
+        <div className="relative shrink-0 mt-0.5" onClick={(e) => canChangeStatus && !isSelectMode ? e.preventDefault() : null}>
+          {canChangeStatus && onStatusChange && !isSelectMode ? (
             <Select
               selectedKey={order.status}
               onSelectionChange={(k) => onStatusChange(k as any)}
@@ -194,7 +194,7 @@ export function OrderCard({ order, isAdmin, onStatusChange, onClick, onLongPress
   );
 }
 
-export function OrderListItem({ order, isAdmin, onStatusChange, onClick, className }: OrderCardProps) {
+export function OrderListItem({ order, canChangeStatus, onStatusChange, onClick, className }: OrderCardProps) {
   const catColor = order.categories ? getCategoryColor(order.categories.id, order.categories.color) : null;
 
   return (
@@ -242,8 +242,8 @@ export function OrderListItem({ order, isAdmin, onStatusChange, onClick, classNa
         </div>
       </td>
       <td className="px-6 py-3.5 align-middle text-center w-[120px]">
-        <div className="relative inline-block" onClick={(e) => isAdmin ? e.stopPropagation() : null}>
-          {isAdmin && onStatusChange ? (
+        <div className="relative inline-block" onClick={(e) => canChangeStatus ? e.stopPropagation() : null}>
+          {canChangeStatus && onStatusChange ? (
             <Select
               selectedKey={order.status}
               onSelectionChange={(k) => onStatusChange(k as any)}
