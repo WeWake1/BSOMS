@@ -7,6 +7,7 @@ import { useOrders } from '@/hooks/useOrders';
 import { StatusCards } from '@/components/dashboard/status-cards';
 import { FilterBar } from '@/components/dashboard/filter-bar';
 import { OrderCard, OrderListItem } from '@/components/dashboard/order-card';
+import { OrderCardSkeleton } from '@/components/dashboard/order-card-skeleton';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { OrderDetailSheet } from '@/components/dashboard/order-detail-sheet';
@@ -433,12 +434,11 @@ export function DashboardClient({ user }: { user: AuthUser }) {
       {/* H4: Mobile export row removed — now in top bar */}
 
       {/* Orders List */}
-      <div ref={orderListRef} className={viewMode === 'card' ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-4 flex flex-col gap-0 rounded-2xl border border-border bg-card overflow-hidden shadow-sm"}>
-        {/* H1: role=status + aria-label on main loading spinner */}
+      <div ref={orderListRef} className={loading && orders.length === 0 ? "mt-4 grid gap-3 sm:grid-cols-2" : viewMode === 'card' ? "mt-4 grid gap-3 sm:grid-cols-2" : "mt-4 flex flex-col gap-0 rounded-2xl border border-border bg-card overflow-hidden shadow-sm"}>
         {loading && orders.length === 0 ? (
-          <div role="status" aria-label="Loading orders" className="py-16 text-center text-sm font-medium text-muted-foreground flex flex-col items-center gap-3">
-            <svg className="animate-spin w-8 h-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-            Loading orders...
+          <div role="status" aria-label="Loading orders" aria-live="polite" className="contents">
+            {Array.from({ length: 6 }).map((_, i) => <OrderCardSkeleton key={i} />)}
+            <span className="sr-only">Loading orders…</span>
           </div>
         ) : sortedOrders.length > 0 ? (
           viewMode === 'card' ? (

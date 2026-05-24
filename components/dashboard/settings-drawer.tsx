@@ -214,14 +214,14 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
       <div className="flex flex-col overflow-y-auto w-full max-w-lg mx-auto p-4 sm:p-6 pb-12 gap-4">
 
         {/* ── Profile ──────────────────────────────── */}
-        <div className="bg-gray-50 dark:bg-slate-900/50 rounded-2xl p-4 border border-gray-100 dark:border-slate-800 flex items-center gap-4 transition-colors">
-          <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded-full flex items-center justify-center font-bold text-lg shrink-0">
+        <div className="bg-card rounded-2xl p-4 border border-border flex items-center gap-4 transition-colors">
+          <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center font-bold text-lg shrink-0">
             {user.profile.full_name ? user.profile.full_name[0].toUpperCase() : (user.email?.[0]?.toUpperCase() || 'U')}
           </div>
           <div className="flex flex-col flex-1 min-w-0">
-            <span className="text-sm font-bold text-gray-900 dark:text-white truncate">{user.profile.full_name || 'No Name Set'}</span>
-            <span className="text-xs text-gray-500 dark:text-slate-400 truncate">{user.email || 'No email'}</span>
-            <span className="text-[10px] uppercase tracking-wider font-bold text-indigo-600 dark:text-indigo-400 mt-1 inline-block bg-indigo-50 dark:bg-indigo-900/30 px-2 py-0.5 rounded-md w-fit">
+            <span className="text-sm font-bold text-foreground truncate">{user.profile.full_name || 'No Name Set'}</span>
+            <span className="text-xs text-muted-foreground truncate">{user.email || 'No email'}</span>
+            <span className="text-[10px] uppercase tracking-wider font-bold text-primary mt-1 inline-block bg-primary/10 px-2 py-0.5 rounded-md w-fit">
               {user.profile.role}
             </span>
           </div>
@@ -288,7 +288,7 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
           >
             {/* Decorative gradient corner — sky tint to match icon chip */}
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full blur-2xl opacity-[0.14] pointer-events-none transition-opacity group-hover:opacity-[0.22]" style={{ background: 'rgb(14 165 233)' }} aria-hidden="true" />
-            <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 flex items-center justify-center shrink-0 relative z-10">
+            <div className="w-10 h-10 rounded-xl text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 relative z-10">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
@@ -313,13 +313,13 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
 
         {/* ── Manage Categories (Admin only) ─────── */}
         {isAdmin && (
-          <div className="bg-white dark:bg-slate-900/50 rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden transition-colors">
+          <div className="bg-card rounded-2xl border border-border overflow-hidden transition-colors">
             <button
               onClick={() => setShowCategories(v => !v)}
               className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-tap"
             >
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center text-foreground">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-foreground">
                   <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                 </div>
                 <div className="text-left">
