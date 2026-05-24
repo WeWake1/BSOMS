@@ -102,9 +102,11 @@ export function DashboardClient({ user }: { user: AuthUser }) {
     setIsBulkUpdating(true);
     const ids = Array.from(selectedIds);
     try {
-      const { error } = await (supabase.from('orders') as any)
-        .update({ status: bulkStatus, dispatch_date: bulkStatus === 'Dispatched' ? new Date().toISOString().split('T')[0] : null })
-        .in('id', ids);
+      const { error } = await supabase.rpc('bulk_update_order_status', {
+        p_order_ids: ids,
+        p_new_status: bulkStatus,
+        p_dispatch_date: bulkStatus === 'Dispatched' ? new Date().toISOString().split('T')[0] : null,
+      } as any);
       if (error) throw error;
       toast.success(`${ids.length} order${ids.length > 1 ? 's' : ''} moved to ${bulkStatus}`);
       exitSelectMode();
@@ -460,7 +462,7 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                     openDetail();
                   }
                 }}
-                onLongPress={isAdmin ? enterSelectMode : undefined}
+                onLongPress={canChangeStatus ? enterSelectMode : undefined}
               />
             ))
           ) : (
@@ -517,17 +519,19 @@ export function DashboardClient({ user }: { user: AuthUser }) {
           <div className="flex-1" />
           {selectedIds.size > 0 && (
             <>
-              {/* Delete button */}
-              <button
-                onClick={handleBulkDelete}
-                disabled={isBulkUpdating}
-                className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-destructive/40 text-destructive text-sm font-semibold hover:bg-destructive/10 transition-colors disabled:opacity-50 whitespace-nowrap"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                </svg>
-                Delete
-              </button>
+              {/* Delete button — admin only (RLS allows DELETE for admin only) */}
+              {isAdmin && (
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={isBulkUpdating}
+                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-destructive/40 text-destructive text-sm font-semibold hover:bg-destructive/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                  </svg>
+                  Delete
+                </button>
+              )}
               <select
                 value={bulkStatus}
                 onChange={e => setBulkStatus(e.target.value as OrderStatus)}
