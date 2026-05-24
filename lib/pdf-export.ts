@@ -1,9 +1,24 @@
-import jsPDF from 'jspdf';
+import jsPDF, { GState } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { OrderWithCategory } from '@/types/database';
 import { formatDate, formatInches } from './utils';
 
-export function generateOrderReportPDF(orders: OrderWithCategory[]) {
+async function loadWatermark(url: string): Promise<{ data: string; aspectRatio: number }> {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  const data = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.readAsDataURL(blob);
+  });
+  const img = new Image();
+  await new Promise<void>((resolve) => { img.onload = () => resolve(); img.src = data; });
+  return { data, aspectRatio: img.naturalWidth / img.naturalHeight };
+}
+
+export async function generateOrderReportPDF(orders: OrderWithCategory[]) {
+  const watermark = await loadWatermark('/watermark logo.png');
+
   // Create jsPDF instance in landscape mode
   const doc = new jsPDF({
     orientation: 'landscape',
@@ -104,6 +119,20 @@ export function generateOrderReportPDF(orders: OrderWithCategory[]) {
       );
     },
   });
+
+  // Stamp watermark on every page (centered, low opacity, behind nothing — added last)
+  const pageHeight = doc.internal.pageSize.height;
+  const wmWidth = 220;
+  const wmHeight = wmWidth / watermark.aspectRatio;
+  const wmX = (pageWidth - wmWidth) / 2;
+  const wmY = (pageHeight - wmHeight) / 2;
+  const totalPages = (doc.internal as any).getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setGState(new GState({ opacity: 0.1 }));
+    doc.addImage(watermark.data, 'PNG', wmX, wmY, wmWidth, wmHeight);
+    doc.setGState(new GState({ opacity: 1 }));
+  }
 
   // Save the PDF
   const filename = `order-report-${new Date().toISOString().split('T')[0]}.pdf`;

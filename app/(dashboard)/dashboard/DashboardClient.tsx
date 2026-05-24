@@ -369,9 +369,9 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                 />
                 <div className={cn(glass.light, "absolute right-0 top-full mt-1 min-w-[130px] w-max border border-border rounded-xl shadow-lg z-50 p-1 flex flex-col animate-in fade-in zoom-in-95 duration-100 hidden-from-print")}>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       setIsExportMenuOpen(false);
-                      generateOrderReportPDF(filteredOrders);
+                      await generateOrderReportPDF(filteredOrders);
                     }}
                     className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium"
                   >

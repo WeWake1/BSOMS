@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
+import { useState, useEffect, useRef, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Drawer } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,6 +49,16 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
 
   const [showCategories, setShowCategories] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+
+  // Per-link navigation pending state — App Router has no built-in for this in Next 14.
+  const router = useRouter();
+  const [isNavigating, startNavigation] = useTransition();
+  const [navTarget, setNavTarget] = useState<string | null>(null);
+
+  const goTo = (href: string) => {
+    setNavTarget(href);
+    startNavigation(() => router.push(href));
+  };
 
   // Category editing state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -236,10 +246,11 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
 
         {/* ── View Statistics (Admin only) ─────────── */}
         {isAdmin && (
-          <Link
-            href="/stats"
-            onClick={onClose}
-            className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-foreground/15 transition-all duration-200 hover:shadow-sm flex items-center gap-3 p-3.5 min-tap"
+          <button
+            type="button"
+            onClick={() => goTo('/stats')}
+            disabled={isNavigating}
+            className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-foreground/15 transition-all duration-200 hover:shadow-sm flex items-center gap-3 p-3.5 min-tap text-left w-full active:scale-[0.98] disabled:cursor-wait"
           >
             {/* Decorative gradient corner */}
             <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full blur-2xl opacity-[0.12] pointer-events-none transition-opacity group-hover:opacity-[0.2]" style={{ background: 'var(--primary)' }} aria-hidden="true" />
@@ -254,19 +265,29 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
               <p className="text-sm font-bold text-foreground">View Statistics</p>
               <p className="text-xs text-muted-foreground">Orders, categories, customers & trends</p>
             </div>
-            <svg className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </Link>
+            {isNavigating && navTarget === '/stats' ? (
+              <svg className="w-4 h-4 text-primary animate-spin relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            )}
+          </button>
         )}
 
         {/* ── Activity Log (Admin only) ────────────── */}
         {isAdmin && (
-          <Link
-            href="/logs"
-            onClick={onClose}
-            className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-foreground/15 transition-all duration-200 hover:shadow-sm flex items-center gap-3 p-3.5 min-tap"
+          <button
+            type="button"
+            onClick={() => goTo('/logs')}
+            disabled={isNavigating}
+            className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-foreground/15 transition-all duration-200 hover:shadow-sm flex items-center gap-3 p-3.5 min-tap text-left w-full active:scale-[0.98] disabled:cursor-wait"
           >
+            {/* Decorative gradient corner — sky tint to match icon chip */}
+            <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full blur-2xl opacity-[0.14] pointer-events-none transition-opacity group-hover:opacity-[0.22]" style={{ background: 'rgb(14 165 233)' }} aria-hidden="true" />
             <div className="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 flex items-center justify-center shrink-0 relative z-10">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
@@ -277,85 +298,17 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
               <p className="text-sm font-bold text-foreground">Activity Log</p>
               <p className="text-xs text-muted-foreground">Who changed what, and when</p>
             </div>
-            <svg className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </Link>
-        )}
-
-        {/* ── Dark Mode ────────────────────────────── */}
-        {/* Dark Mode Toggle */}
-        <div className="py-4 border-b border-border">
-          <div className="flex items-center justify-between min-tap">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-foreground">
-                <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-              </div>
-              <span className="font-medium text-foreground">Dark Mode</span>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={darkMode}
-              onClick={toggleDarkMode}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${darkMode ? "bg-indigo-600" : "bg-muted"}`}
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${darkMode ? "translate-x-6" : "translate-x-1"}`}
-              />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Install App ──────────────────────────── */}
-        {!isStandalone && (
-          <div className="py-4 border-b border-border">
-            <div className="flex items-center justify-between min-tap">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-foreground">
-                  <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-                    <line x1="12" y1="18" x2="12.01" y2="18"/>
-                  </svg>
-                </div>
-                <div>
-                  <span className="font-medium text-foreground block">Install App</span>
-                  <span className="text-xs text-muted-foreground">
-                    {isIOS ? 'Add to Home Screen via Safari' : 'Add to your home screen'}
-                  </span>
-                </div>
-              </div>
-              {canInstall && !isIOS && (
-                <button
-                  type="button"
-                  onClick={handleInstall}
-                  disabled={isInstalling || installDone}
-                  className="h-8 px-3 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-60 shrink-0"
-                >
-                  {installDone ? '✓ Installed' : isInstalling ? 'Installing…' : 'Install'}
-                </button>
-              )}
-              {installDone && !canInstall && (
-                <span className="text-xs font-bold text-green-600 shrink-0">✓ Installed</span>
-              )}
-            </div>
-            {isIOS && (
-              <div className="mt-3 bg-muted/60 rounded-xl p-3 text-xs text-muted-foreground leading-relaxed">
-                <p className="font-semibold text-foreground mb-1">How to install on iPhone/iPad:</p>
-                <ol className="list-decimal list-inside space-y-1">
-                  <li>Open this page in <strong>Safari</strong></li>
-                  <li>Tap the <strong>Share</strong> button <span className="font-mono">(↑)</span> at the bottom</li>
-                  <li>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></li>
-                  <li>Tap <strong>&quot;Add&quot;</strong> — done!</li>
-                </ol>
-              </div>
+            {isNavigating && navTarget === '/logs' ? (
+              <svg className="w-4 h-4 text-sky-600 dark:text-sky-400 animate-spin relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             )}
-            {!isIOS && !canInstall && !installDone && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Tap the browser menu → <strong>Add to Home Screen</strong> or <strong>Install App</strong>.
-              </p>
-            )}
-          </div>
+          </button>
         )}
 
         {/* ── Manage Categories (Admin only) ─────── */}
@@ -466,6 +419,81 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
                   </button>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Dark Mode ────────────────────────────── */}
+        {/* Dark Mode Toggle */}
+        <div className="py-4 border-b border-border">
+          <div className="flex items-center justify-between min-tap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-foreground">
+                <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              </div>
+              <span className="font-medium text-foreground">Dark Mode</span>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={darkMode}
+              onClick={toggleDarkMode}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${darkMode ? "bg-indigo-600" : "bg-muted"}`}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${darkMode ? "translate-x-6" : "translate-x-1"}`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* ── Install App ──────────────────────────── */}
+        {!isStandalone && (
+          <div className="py-4 border-b border-border">
+            <div className="flex items-center justify-between min-tap">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-foreground">
+                  <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                    <line x1="12" y1="18" x2="12.01" y2="18"/>
+                  </svg>
+                </div>
+                <div>
+                  <span className="font-medium text-foreground block">Install App</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isIOS ? 'Add to Home Screen via Safari' : 'Add to your home screen'}
+                  </span>
+                </div>
+              </div>
+              {canInstall && !isIOS && (
+                <button
+                  type="button"
+                  onClick={handleInstall}
+                  disabled={isInstalling || installDone}
+                  className="h-8 px-3 rounded-lg text-xs font-bold bg-primary text-primary-foreground hover:opacity-90 active:scale-95 transition-all duration-150 disabled:opacity-60 shrink-0"
+                >
+                  {installDone ? '✓ Installed' : isInstalling ? 'Installing…' : 'Install'}
+                </button>
+              )}
+              {installDone && !canInstall && (
+                <span className="text-xs font-bold text-green-600 shrink-0">✓ Installed</span>
+              )}
+            </div>
+            {isIOS && (
+              <div className="mt-3 bg-muted/60 rounded-xl p-3 text-xs text-muted-foreground leading-relaxed">
+                <p className="font-semibold text-foreground mb-1">How to install on iPhone/iPad:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Open this page in <strong>Safari</strong></li>
+                  <li>Tap the <strong>Share</strong> button <span className="font-mono">(↑)</span> at the bottom</li>
+                  <li>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></li>
+                  <li>Tap <strong>&quot;Add&quot;</strong> — done!</li>
+                </ol>
+              </div>
+            )}
+            {!isIOS && !canInstall && !installDone && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Tap the browser menu → <strong>Add to Home Screen</strong> or <strong>Install App</strong>.
+              </p>
             )}
           </div>
         )}
