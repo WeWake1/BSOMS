@@ -10,6 +10,8 @@ export type LiveStatus = 'idle' | 'connecting' | 'listening' | 'speaking' | 'err
 
 export type LiveTranscript = { user: string; assistant: string };
 
+export type LiveTurn = { user: string; assistant: string };
+
 // Prebuilt voice — see https://ai.google.dev/gemini-api/docs/live-api for options.
 const VOICE_NAME = 'Puck';
 const INPUT_SAMPLE_RATE = 16000;  // Gemini Live requires 16kHz mic input
@@ -44,10 +46,19 @@ function base64PCMToFloat32(b64: string): Float32Array {
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
-export function useGeminiLive() {
+export function useGeminiLive(options?: { onTurnComplete?: (turn: LiveTurn) => void }) {
   const [status, setStatus] = useState<LiveStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<LiveTranscript>({ user: '', assistant: '' });
+
+  // Keep the latest onTurnComplete in a ref so the socket handler (memoised
+  // with empty deps) always calls the current callback without re-subscribing.
+  const onTurnCompleteRef = useRef(options?.onTurnComplete);
+  useEffect(() => { onTurnCompleteRef.current = options?.onTurnComplete; });
+
+  // Smoothed mic input level (0..1) for the voice orb. A ref — not state — so
+  // the orb's render loop can read it every frame without re-rendering React.
+  const inputLevelRef = useRef(0);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sessionRef = useRef<any>(null);
@@ -76,6 +87,7 @@ export function useGeminiLive() {
     outputCtxRef.current = null;
     userTextRef.current = '';
     assistantTextRef.current = '';
+    inputLevelRef.current = 0;
   }, []);
 
   const stop = useCallback(() => {
@@ -138,10 +150,14 @@ export function useGeminiLive() {
       setTranscript((t) => ({ ...t, user: userTextRef.current }));
     }
 
-    // 5. Turn boundary — reset accumulators, back to listening.
+    // 5. Turn boundary — commit the finished turn to the thread, reset, listen.
     if (sc.turnComplete) {
+      const u = userTextRef.current.trim();
+      const a = assistantTextRef.current.trim();
+      if (u || a) onTurnCompleteRef.current?.({ user: u, assistant: a });
       userTextRef.current = '';
       assistantTextRef.current = '';
+      setTranscript({ user: '', assistant: '' });
       setStatus('listening');
     }
   }, []);
@@ -211,7 +227,16 @@ export function useGeminiLive() {
       // 5. Stream mic chunks → Gemini.
       captureNode.port.onmessage = (event: MessageEvent) => {
         if (event.data?.type !== 'audio' || !sessionRef.current) return;
-        const b64 = arrayBufferToBase64(floatTo16BitPCM(event.data.data as Float32Array));
+        const float = event.data.data as Float32Array;
+
+        // Smoothed RMS level so the orb pulses with the speaker's voice.
+        let sum = 0;
+        for (let i = 0; i < float.length; i++) sum += float[i] * float[i];
+        const rms = Math.sqrt(sum / float.length);
+        const level = Math.min(1, rms * 7);
+        inputLevelRef.current += (level - inputLevelRef.current) * 0.3;
+
+        const b64 = arrayBufferToBase64(floatTo16BitPCM(float));
         try {
           sessionRef.current.sendRealtimeInput({ audio: { data: b64, mimeType: 'audio/pcm;rate=16000' } });
         } catch { /* socket closing */ }
@@ -230,5 +255,5 @@ export function useGeminiLive() {
   // Tear down on unmount.
   useEffect(() => cleanup, [cleanup]);
 
-  return { status, error, transcript, start, stop };
+  return { status, error, transcript, inputLevelRef, start, stop };
 }

@@ -47,7 +47,12 @@
       "Bash(grep -B 1 -A 30 \"function liveConnectConfigToMldev\\\\$1\" \"C:\\\\Users\\\\vivek\\\\VSC\\\\BSOMS\\\\node_modules\\\\@google\\\\genai\\\\dist\\\\node\\\\index.cjs\")",
       "Bash(git rm *)",
       "Bash(npm ls *)",
-      "Bash(git grep *)"
+      "Bash(git grep *)",
+      "PowerShell(npm install *)",
+      "WebFetch(domain:reactbits.dev)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(node *)",
+      "Bash(npm run *)"
     ]
   },
   "enableAllProjectMcpServers": true,
