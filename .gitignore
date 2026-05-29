@@ -38,3 +38,15 @@ next-env.d.ts
 # Proposals
 OrderFlow_Proposal.docx
 OrderFlow_Proposal_v2.docx
+
+# Gemini-live-api-example-implementation from google themselves
+gemini-live-api-examples
+
+.claude/settings.local.json
+public/sw.js
+
+public\sw.js
+
+C:\Users\vivek\VSC\BSOMS\public\sw.js
+public/sw.js
+.claude/settings.local.json

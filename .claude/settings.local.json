@@ -38,7 +38,16 @@
       "mcp__supabase__execute_sql",
       "mcp__supabase__get_advisors",
       "Bash(xargs ls -la)",
-      "mcp__supabase__get_logs"
+      "mcp__supabase__get_logs",
+      "Bash(dir C:UsersvivekVSCBSOMS *)",
+      "PowerShell($env:NEXT_TELEMETRY_DISABLED='1'; npx next lint 2>&1 | Select-Object -Last 80)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -Last 40)",
+      "PowerShell($env:NEXT_TELEMETRY_DISABLED='1'; npx next build 2>&1 | Select-Object -Last 50)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -Last 30)",
+      "Bash(grep -B 1 -A 30 \"function liveConnectConfigToMldev\\\\$1\" \"C:\\\\Users\\\\vivek\\\\VSC\\\\BSOMS\\\\node_modules\\\\@google\\\\genai\\\\dist\\\\node\\\\index.cjs\")",
+      "Bash(git rm *)",
+      "Bash(npm ls *)",
+      "Bash(git grep *)"
     ]
   },
   "enableAllProjectMcpServers": true,

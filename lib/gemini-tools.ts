@@ -3,8 +3,6 @@ import type { FunctionDeclaration } from '@google/genai';
 
 export const TEXT_MODEL = 'gemma-4-31b-it';
 
-export const VOICE_MODEL = 'gemini-3.1-flash-live-preview';
-
 export const SYSTEM_INSTRUCTION =
   'You are an order management assistant for OrderFlow. You have access to a live database of orders. ' +
   'Answer questions about orders clearly and concisely. Always use your database tools to fetch real-time data ' +
