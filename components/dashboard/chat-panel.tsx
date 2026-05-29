@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useGeminiLive } from '@/hooks/useGeminiLive';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,9 +30,29 @@ export function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // ── Voice (Gemini Live, audio-to-audio) ──────────────────────────────────────
+  const { status: voiceStatus, error: voiceError, transcript, start, stop } = useGeminiLive();
+  const voiceActive = voiceStatus !== 'idle' && voiceStatus !== 'error';
+
+  const toggleVoice = useCallback(() => {
+    if (voiceActive) stop();
+    else start();
+  }, [voiceActive, start, stop]);
+
+  // Stop the voice session when the panel closes.
+  useEffect(() => {
+    if (!isOpen && voiceActive) stop();
+  }, [isOpen, voiceActive, stop]);
+
+  const voiceLabel =
+    voiceStatus === 'connecting' ? 'Connecting…'
+    : voiceStatus === 'speaking' ? 'Speaking…'
+    : voiceStatus === 'listening' ? 'Listening…'
+    : '';
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, transcript]);
 
   useEffect(() => {
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 100);
@@ -117,7 +138,7 @@ export function ChatPanel() {
             {messages.length === 0 && (
               <div className="text-center text-sm text-muted-foreground mt-8 space-y-1">
                 <p className="font-medium text-foreground">Ask me about your orders</p>
-                <p>{`Try: "How many orders are pending?" or "What's overdue?"`}</p>
+                <p>{`Type, or tap the mic to talk. Try: "How many orders are pending?"`}</p>
               </div>
             )}
 
@@ -146,11 +167,64 @@ export function ChatPanel() {
               </div>
             )}
 
+            {/* Live voice captions (ephemeral, current turn only) */}
+            {voiceActive && transcript.user && (
+              <div className="flex justify-end">
+                <div className="max-w-[85%] rounded-2xl rounded-br-sm px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words bg-primary/70 text-primary-foreground italic">
+                  {transcript.user}
+                </div>
+              </div>
+            )}
+            {voiceActive && transcript.assistant && (
+              <div className="flex justify-start">
+                <div className="max-w-[85%] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words bg-muted text-foreground italic">
+                  {transcript.assistant}
+                </div>
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Voice status strip */}
+          {(voiceActive || voiceError) && (
+            <div className="flex-shrink-0 px-4 py-2 flex items-center gap-2 text-xs border-t border-border">
+              {voiceError ? (
+                <span className="text-destructive">{voiceError}</span>
+              ) : (
+                <>
+                  <span className={`w-2 h-2 rounded-full ${voiceStatus === 'speaking' ? 'bg-primary' : 'bg-emerald-500'} ${voiceStatus === 'connecting' ? 'animate-pulse' : 'animate-ping'}`} />
+                  <span className="text-muted-foreground font-medium">{voiceLabel}</span>
+                  <span className="text-muted-foreground/70">· tap mic to end</span>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Input bar */}
           <div className="flex-shrink-0 border-t border-border px-3 py-3 flex items-center gap-2">
+            {/* Voice mic toggle */}
+            <button
+              onClick={toggleVoice}
+              className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                voiceActive
+                  ? 'bg-destructive text-destructive-foreground'
+                  : 'bg-muted text-foreground hover:bg-muted/70'
+              }`}
+              aria-label={voiceActive ? 'Stop voice assistant' : 'Start voice assistant'}
+              aria-pressed={voiceActive}
+            >
+              {voiceActive ? (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              )}
+            </button>
+
             <input
               ref={inputRef}
               type="text"

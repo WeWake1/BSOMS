@@ -1,7 +1,12 @@
 import { Type } from '@google/genai';
 import type { FunctionDeclaration } from '@google/genai';
+import * as queries from '@/lib/supabase/chatbot-queries';
 
 export const TEXT_MODEL = 'gemma-4-31b-it';
+
+// Live (audio-to-audio) model — Gemini 3.1 Flash Live, native audio-to-audio.
+// If the API key lacks preview access, fall back to 'gemini-live-2.5-flash-preview'.
+export const LIVE_MODEL = 'gemini-3.1-flash-live-preview';
 
 export const SYSTEM_INSTRUCTION =
   'You are an order management assistant for OrderFlow. You have access to a live database of orders. ' +
@@ -119,3 +124,30 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
     },
   },
 ];
+
+// Executes a single tool call against the order database. Shared by the text
+// chat route (server Supabase client) and the live voice hook (browser client);
+// both run read-only through RLS, so either client works.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function executeTool(name: string, args: Record<string, unknown>, client: any): Promise<unknown> {
+  switch (name) {
+    case 'get_orders_summary':
+      return queries.getOrdersSummary(client);
+    case 'get_orders_by_status':
+      return queries.getOrdersByStatus(client, args.status as string);
+    case 'get_orders_by_customer':
+      return queries.getOrdersByCustomer(client, args.customer_name as string);
+    case 'get_orders_by_category':
+      return queries.getOrdersByCategory(client, args.category_name as string);
+    case 'get_overdue_orders':
+      return queries.getOverdueOrders(client);
+    case 'get_orders_due_soon':
+      return queries.getOrdersDueSoon(client, args.days as number);
+    case 'get_order_detail':
+      return queries.getOrderDetail(client, args.order_no as string);
+    case 'get_dispatch_summary':
+      return queries.getDispatchSummary(client, args.start_date as string, args.end_date as string);
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
+}
