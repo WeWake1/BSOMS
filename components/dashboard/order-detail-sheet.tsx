@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { OrderWithCategoryAndItems } from '@/types/database';
 import toast from 'react-hot-toast';
 import { OrderHistorySection } from './order-history-section';
+import { generateStickerPDF } from '@/lib/sticker-export';
 
 interface OrderDetailSheetProps {
   order: OrderWithCategoryAndItems | null;
@@ -230,6 +231,15 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
               </p>
             </div>
           )}
+
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={() => generateStickerPDF([order], 'view')}
+          >
+            <svg className="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3v4a1 1 0 0 0 1 1h4"/><path d="M18 17h-7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4l6 6v6a2 2 0 0 1-2 2Z"/><path d="M15 21h-7a2 2 0 0 1-2-2v-8"/></svg>
+            Export Sticker
+          </Button>
 
           {isAdmin && <OrderHistorySection orderId={order.id} />}
 

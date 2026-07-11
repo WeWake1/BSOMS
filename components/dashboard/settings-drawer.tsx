@@ -244,6 +244,36 @@ export function SettingsDrawer({ isOpen, onClose, user, categories }: SettingsDr
           </Button>
         </div>
 
+        {/* ── Pricelist (all roles) ────────────────── */}
+        <button
+          type="button"
+          onClick={() => goTo('/pricelist')}
+          disabled={isNavigating}
+          className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-foreground/15 transition-all duration-200 hover:shadow-sm flex items-center gap-3 p-3.5 min-tap text-left w-full active:scale-[0.98] disabled:cursor-wait"
+        >
+          <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full blur-2xl opacity-[0.14] pointer-events-none transition-opacity group-hover:opacity-[0.22]" style={{ background: 'rgb(16 185 129)' }} aria-hidden="true" />
+          <div className="w-10 h-10 rounded-xl text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 relative z-10">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0 relative z-10">
+            <p className="text-sm font-bold text-foreground">Pricelist</p>
+            <p className="text-xs text-muted-foreground">{isAdmin ? 'Look up & manage product prices' : 'Look up product prices'}</p>
+          </div>
+          {isNavigating && navTarget === '/pricelist' ? (
+            <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400 animate-spin relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all relative z-10 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          )}
+        </button>
+
         {/* ── View Statistics (Admin only) ─────────── */}
         {isAdmin && (
           <button

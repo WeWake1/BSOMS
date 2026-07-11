@@ -16,6 +16,7 @@ import { BulkOrderSheet } from '@/components/dashboard/bulk-order-sheet';
 import { SettingsDrawer } from '@/components/dashboard/settings-drawer';
 import { ChatPanel } from '@/components/dashboard/chat-panel';
 import { generateOrderReportPDF } from '@/lib/pdf-export';
+import { generateStickerPDF } from '@/lib/sticker-export';
 import { createClient } from '@/lib/supabase/client';
 import { formatDate, formatInches, cn, glass } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -372,11 +373,20 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                   <button
                     onClick={async () => {
                       setIsExportMenuOpen(false);
-                      await generateOrderReportPDF(filteredOrders);
+                      await generateOrderReportPDF(filteredOrders, 'view');
                     }}
                     className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium"
                   >
-                    Export as PDF
+                    View PDF
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setIsExportMenuOpen(false);
+                      await generateOrderReportPDF(filteredOrders, 'download');
+                    }}
+                    className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium mt-0.5"
+                  >
+                    Download PDF
                   </button>
                   <button
                     onClick={() => {
@@ -386,6 +396,25 @@ export function DashboardClient({ user }: { user: AuthUser }) {
                     className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium mt-0.5"
                   >
                     Export as PNG
+                  </button>
+                  <div className="h-px bg-border my-1 mx-1" />
+                  <button
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      generateStickerPDF(filteredOrders, 'view');
+                    }}
+                    className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium"
+                  >
+                    View Stickers
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsExportMenuOpen(false);
+                      generateStickerPDF(filteredOrders, 'download');
+                    }}
+                    className="text-left px-3 py-2 text-sm rounded-lg hover:bg-muted text-foreground transition-colors font-medium mt-0.5"
+                  >
+                    Download Stickers
                   </button>
                 </div>
               </>

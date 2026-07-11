@@ -42,11 +42,8 @@
       "Bash(sed 's/=.*/=<redacted>/' /Users/wewake/AnitGrav/BhaktiSales/.env.local)",
       "Bash(sed -n '/\"dependencies\"/,/}/p' /Users/wewake/AnitGrav/BhaktiSales/package.json)",
       "WebFetch(domain:wapikon.com)",
-      "WebFetch(domain:docs.wapikon.com)"
+      "WebFetch(domain:docs.wapikon.com)",
+      "WebFetch(domain:supabase.com)"
     ]
-  },
-  "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [
-    "supabase"
-  ]
+  }
 }

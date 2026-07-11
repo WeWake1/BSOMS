@@ -1,0 +1,333 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import toast from 'react-hot-toast';
+import { usePricelist } from '@/hooks/usePricelist';
+import { PricelistTree } from '@/components/pricelist/pricelist-tree';
+import { ProductDetailSheet } from '@/components/pricelist/product-detail-sheet';
+import { NodeFormSheet, type PricelistLevel } from '@/components/pricelist/node-form-sheet';
+import { SupplierManagerSheet } from '@/components/pricelist/supplier-manager-sheet';
+import { CategoryTabs } from '@/components/pricelist/category-tabs';
+import { GridView } from '@/components/pricelist/grid-view';
+import { CardsView } from '@/components/pricelist/cards-view';
+import { TreeView } from '@/components/pricelist/tree-view';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
+import {
+  flattenProducts,
+  getCategoryNodes,
+  getBrandSections,
+} from '@/lib/pricelist-utils';
+import type { AuthUser } from '@/lib/auth';
+import type {
+  PricelistNodeWithRelations,
+  PricelistTreeNode,
+} from '@/types/database';
+
+type View = 'grid' | 'cards' | 'tree' | 'manage';
+
+interface Selected {
+  node: PricelistNodeWithRelations;
+  path: string[];
+}
+
+interface FormState {
+  mode: 'create' | 'edit';
+  parentId: string | null;
+  node: PricelistNodeWithRelations | null;
+  level: PricelistLevel;
+}
+
+export function PricelistClient({ user }: { user: AuthUser }) {
+  const isAdmin = user.profile.role === 'admin';
+  const { tree, suppliers, loading, error } = usePricelist();
+  const [supabase] = useState(() => createClient());
+
+  const [view, setView] = useState<View>('grid');
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Selected | null>(null);
+
+  const [form, setForm] = useState<FormState | null>(null);
+  const [suppliersOpen, setSuppliersOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<PricelistTreeNode | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  // Persisted layout choice
+  useEffect(() => {
+    const v = localStorage.getItem('pricelistView') as View | null;
+    const valid: View[] = ['grid', 'cards', 'tree', 'manage'];
+    if (v && valid.includes(v)) setView(v);
+  }, []);
+  const changeView = (v: View) => {
+    setView(v);
+    localStorage.setItem('pricelistView', v);
+  };
+  const effectiveView: View = (view === 'manage' && !isAdmin) ? 'grid' : view;
+
+  const flat = useMemo(() => flattenProducts(tree), [tree]);
+  const pathById = useMemo(() => new Map(flat.map((f) => [f.node.id, f.path])), [flat]);
+  const categories = useMemo(() => getCategoryNodes(tree), [tree]);
+
+  // Default / keep a valid selected category
+  useEffect(() => {
+    if (categories.length === 0) {
+      if (categoryId !== null) setCategoryId(null);
+    } else if (!categories.some((c) => c.id === categoryId)) {
+      setCategoryId(categories[0].id);
+    }
+  }, [categories, categoryId]);
+
+  const selectedCategory = categories.find((c) => c.id === categoryId) ?? categories[0] ?? null;
+  const sections = useMemo(
+    () => (selectedCategory ? getBrandSections(selectedCategory) : []),
+    [selectedCategory]
+  );
+
+  const selectProduct = (node: PricelistNodeWithRelations) =>
+    setSelected({ node, path: pathById.get(node.id) ?? [] });
+
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  // ── Admin handlers ──────────────────────────────────────────────
+  const addRoot = () =>
+    setForm({ mode: 'create', parentId: null, node: null, level: 'category' });
+  const addChild = (parent: PricelistTreeNode) => {
+    // depth 0 = category → adding a brand; depth 1 = brand → adding a variety
+    const level: PricelistLevel = parent.depth === 0 ? 'brand' : 'variety';
+    setForm({ mode: 'create', parentId: parent.id, node: null, level });
+  };
+  const editNode = (node: PricelistNodeWithRelations) => {
+    const level: PricelistLevel =
+      node.kind === 'product' ? 'variety'
+      : node.parent_id === null ? 'category'
+      : 'brand';
+    setForm({ mode: 'edit', parentId: node.parent_id, node, level });
+  };
+  const editFromDetail = (node: PricelistNodeWithRelations) => {
+    setSelected(null);
+    editNode(node);
+  };
+
+  const doDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      const { error: err } = await supabase.from('pricelist_nodes').delete().eq('id', toDelete.id);
+      if (err) throw err;
+      toast.success(`Deleted “${toDelete.name}”.`);
+      setToDelete(null);
+    } catch {
+      toast.error("Couldn't delete. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const deleteMessage = toDelete
+    ? toDelete.kind === 'group' && toDelete.children.length > 0
+      ? `This will also delete everything inside “${toDelete.name}” (${toDelete.children.length} item${toDelete.children.length !== 1 ? 's' : ''}). This can't be undone.`
+      : `Delete “${toDelete.name}”? This can't be undone.`
+    : '';
+
+  const tabs: { key: View; label: string }[] = [
+    { key: 'grid', label: 'Grid' },
+    { key: 'cards', label: 'Cards' },
+    { key: 'tree', label: 'Tree' },
+    ...(isAdmin ? [{ key: 'manage' as View, label: 'Manage' }] : []),
+  ];
+
+  const showFab = isAdmin && effectiveView === 'manage';
+
+  return (
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-28 lg:pb-8">
+      {/* Top bar */}
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href="/dashboard"
+            className="w-9 h-9 rounded-full bg-muted text-foreground flex items-center justify-center hover:bg-muted/70 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-tap shrink-0"
+            aria-label="Back to dashboard"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+          </Link>
+          <div className="min-w-0">
+            <h1 className="text-fluid-2xl font-extrabold text-foreground tracking-tight">Pricelist</h1>
+            <p className="text-sm font-medium text-muted-foreground mt-0.5">
+              {loading ? 'Loading…' : `${flat.length} product${flat.length !== 1 ? 's' : ''}`}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setSuppliersOpen(true)}
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted transition-colors min-tap"
+            >
+              <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h18M3 9l2-5h14l2 5M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9" /></svg>
+              <span className="hidden sm:inline">Suppliers</span>
+            </button>
+          )}
+          <Link
+            href="/pricelist/quote"
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors min-tap"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="13" y2="17" /></svg>
+            Quote
+          </Link>
+        </div>
+      </div>
+
+      {/* View switcher */}
+      <div className="grid grid-flow-col auto-cols-fr gap-1 p-1 bg-muted rounded-xl mb-4">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => changeView(t.key)}
+            className={cn(
+              'h-9 rounded-lg text-sm font-semibold transition-colors min-tap',
+              effectiveView === t.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Body */}
+      {error ? (
+        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm p-4 rounded-2xl border border-red-100 dark:border-red-900/50">
+          Couldn&apos;t load the pricelist. {error}
+        </div>
+      ) : loading ? (
+        <PricelistSkeleton />
+      ) : flat.length === 0 && categories.length === 0 ? (
+        <EmptyState isAdmin={isAdmin} onAdd={addRoot} />
+      ) : effectiveView === 'tree' ? (
+        <TreeView
+          categories={categories}
+          selectedId={selectedCategory?.id ?? null}
+          onSelect={setCategoryId}
+          onSelectProduct={selectProduct}
+        />
+      ) : effectiveView === 'manage' ? (
+        <div className="rounded-2xl border border-border bg-card p-1.5">
+          <PricelistTree
+            nodes={tree}
+            expanded={expanded}
+            onToggle={toggle}
+            onSelectProduct={selectProduct}
+            isAdmin={isAdmin}
+            onAddChild={addChild}
+            onEditNode={editNode}
+            onDeleteNode={setToDelete}
+          />
+        </div>
+      ) : (
+        <>
+          <CategoryTabs categories={categories} selectedId={selectedCategory?.id ?? null} onSelect={setCategoryId} />
+          {effectiveView === 'grid' ? (
+            <GridView sections={sections} onSelectProduct={selectProduct} />
+          ) : (
+            <CardsView sections={sections} onSelectProduct={selectProduct} />
+          )}
+        </>
+      )}
+
+      {/* FAB — admin add root category (Manage view) */}
+      {showFab && (
+        <button
+          type="button"
+          onClick={addRoot}
+          className="fixed bottom-6 right-5 z-20 h-14 pl-4 pr-5 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 flex items-center gap-2 font-semibold text-sm hover:bg-primary/90 active:scale-95 transition-all"
+          aria-label="Add category"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add
+        </button>
+      )}
+
+      {/* Detail sheet */}
+      <ProductDetailSheet
+        node={selected?.node ?? null}
+        path={selected?.path ?? []}
+        onClose={() => setSelected(null)}
+        onEdit={isAdmin ? editFromDetail : undefined}
+      />
+
+      {/* Add / edit form */}
+      {form && (
+        <NodeFormSheet
+          isOpen={!!form}
+          onClose={() => setForm(null)}
+          mode={form.mode}
+          parentId={form.parentId}
+          level={form.level}
+          node={form.node}
+          suppliers={suppliers}
+        />
+      )}
+
+      {/* Suppliers */}
+      {isAdmin && (
+        <SupplierManagerSheet isOpen={suppliersOpen} onClose={() => setSuppliersOpen(false)} suppliers={suppliers} />
+      )}
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        isOpen={!!toDelete}
+        title={`Delete ${toDelete?.kind === 'group' ? 'group' : 'product'}?`}
+        message={deleteMessage}
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={doDelete}
+        onCancel={() => setToDelete(null)}
+      />
+    </div>
+  );
+}
+
+function PricelistSkeleton() {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-3 flex flex-col gap-2">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <div key={i} className="h-11 rounded-xl bg-muted animate-pulse" style={{ width: `${85 - (i % 3) * 12}%` }} />
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ isAdmin, onAdd }: { isAdmin: boolean; onAdd: () => void }) {
+  return (
+    <div className="text-center py-16 px-6 border border-dashed border-border rounded-2xl">
+      <div className="w-12 h-12 mx-auto rounded-2xl bg-muted flex items-center justify-center text-muted-foreground mb-3">
+        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 7h-9M14 17H5M17 3l4 4-4 4M7 21l-4-4 4-4" /></svg>
+      </div>
+      <p className="text-sm font-semibold text-foreground">No products yet</p>
+      <p className="text-sm text-muted-foreground mt-1">
+        {isAdmin ? 'Add your first category to start building the pricelist.' : 'Prices added by an admin will appear here.'}
+      </p>
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={onAdd}
+          className="mt-4 inline-flex items-center gap-1.5 h-10 px-4 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors min-tap"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add category
+        </button>
+      )}
+    </div>
+  );
+}

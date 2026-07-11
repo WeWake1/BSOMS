@@ -16,7 +16,10 @@ async function loadWatermark(url: string): Promise<{ data: string; aspectRatio: 
   return { data, aspectRatio: img.naturalWidth / img.naturalHeight };
 }
 
-export async function generateOrderReportPDF(orders: OrderWithCategory[]) {
+export async function generateOrderReportPDF(
+  orders: OrderWithCategory[],
+  action: 'download' | 'view' = 'download'
+) {
   const watermark = await loadWatermark('/watermark logo.png');
 
   // Create jsPDF instance in landscape mode
@@ -132,6 +135,11 @@ export async function generateOrderReportPDF(orders: OrderWithCategory[]) {
     doc.setGState(new GState({ opacity: 0.1 }));
     doc.addImage(watermark.data, 'PNG', wmX, wmY, wmWidth, wmHeight);
     doc.setGState(new GState({ opacity: 1 }));
+  }
+
+  if (action === 'view') {
+    window.open(doc.output('bloburl'), '_blank');
+    return;
   }
 
   // Save the PDF

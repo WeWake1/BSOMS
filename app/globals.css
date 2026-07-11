@@ -144,6 +144,13 @@ body {
   .pb-safe {
     padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
   }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 
   /* Status accent left-borders — for order card visual coding */
   .status-border-pending    { border-left-color: var(--status-pending);    }

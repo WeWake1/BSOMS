@@ -58,9 +58,88 @@ export interface OrderActivityLog {
   changed_at: string;
 }
 
+// ─── Pricelist module ──────────────────────────────────────────────────
+export type PricelistNodeKind = 'group' | 'product';
+
+export interface PricelistSupplier {
+  id: string;
+  name: string;
+  location: string | null;
+  contact_name: string | null;
+  phone: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PricelistPrice {
+  id: string;
+  node_id: string;
+  label: string;
+  rate: number;
+  unit: string | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface PricelistNode {
+  id: string;
+  parent_id: string | null;
+  kind: PricelistNodeKind;
+  name: string;
+  length: number | null;
+  width: number | null;
+  thickness: number | null;
+  unit: string | null;
+  tags: string[];
+  supplier_id: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A node with its joined prices + supplier (shape returned by the queries). */
+export interface PricelistNodeWithRelations extends PricelistNode {
+  prices: PricelistPrice[];
+  supplier: PricelistSupplier | null;
+}
+
+/** A node with its children attached — the tree shape built client-side. */
+export interface PricelistTreeNode extends PricelistNodeWithRelations {
+  children: PricelistTreeNode[];
+  depth: number;
+}
+
 export type Database = {
   public: {
     Tables: {
+      pricelist_suppliers: {
+        Row: PricelistSupplier;
+        Insert: Omit<PricelistSupplier, 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<PricelistSupplier, 'id' | 'created_at'>>;
+      };
+      pricelist_nodes: {
+        Row: PricelistNode;
+        Insert: Omit<PricelistNode, 'id' | 'created_at' | 'updated_at' | 'tags'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+          tags?: string[];
+        };
+        Update: Partial<Omit<PricelistNode, 'id' | 'created_at'>>;
+      };
+      pricelist_prices: {
+        Row: PricelistPrice;
+        Insert: Omit<PricelistPrice, 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Omit<PricelistPrice, 'id' | 'created_at'>>;
+      };
       orders: {
         Row: Order;
         Insert: Omit<Order, 'id' | 'created_at' | 'updated_at'> & {
@@ -95,6 +174,7 @@ export type Database = {
     Enums: {
       order_status: OrderStatus;
       order_event_type: OrderEventType;
+      pricelist_node_kind: PricelistNodeKind;
     };
   };
 };
