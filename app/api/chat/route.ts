@@ -1,34 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@/lib/supabase/server';
-import { SYSTEM_INSTRUCTION, TOOL_DECLARATIONS, TEXT_MODEL } from '@/lib/gemini-tools';
-import * as queries from '@/lib/supabase/chatbot-queries';
+import { SYSTEM_INSTRUCTION, TOOL_DECLARATIONS, TEXT_MODEL, executeTool } from '@/lib/gemini-tools';
 
 const genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function executeTool(name: string, args: Record<string, unknown>, client: any): Promise<unknown> {
-  switch (name) {
-    case 'get_orders_summary':
-      return queries.getOrdersSummary(client);
-    case 'get_orders_by_status':
-      return queries.getOrdersByStatus(client, args.status as string);
-    case 'get_orders_by_customer':
-      return queries.getOrdersByCustomer(client, args.customer_name as string);
-    case 'get_orders_by_category':
-      return queries.getOrdersByCategory(client, args.category_name as string);
-    case 'get_overdue_orders':
-      return queries.getOverdueOrders(client);
-    case 'get_orders_due_soon':
-      return queries.getOrdersDueSoon(client, args.days as number);
-    case 'get_order_detail':
-      return queries.getOrderDetail(client, args.order_no as string);
-    case 'get_dispatch_summary':
-      return queries.getDispatchSummary(client, args.start_date as string, args.end_date as string);
-    default:
-      throw new Error(`Unknown tool: ${name}`);
-  }
-}
 
 export async function POST(req: NextRequest) {
   try {

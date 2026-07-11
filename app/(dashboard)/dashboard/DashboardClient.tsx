@@ -724,8 +724,8 @@ export function DashboardClient({ user }: { user: AuthUser }) {
         </div>
       )}
 
-      {/* AI Chat Panel (FAB + sliding panel, accessible to all roles) */}
-      <ChatPanel />
+      {/* AI Chat Panel (FAB + floating widget, accessible to all roles) */}
+      <ChatPanel userName={user.profile.full_name || user.email || 'You'} />
 
       {/* Off-screen Image Export Container */}
       <div 

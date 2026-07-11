@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useGeminiLive } from '@/hooks/useGeminiLive';
+import Orb from '@/components/ui/orb';
+import { cn, glass } from '@/lib/utils';
+import toast from 'react-hot-toast';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -9,11 +12,10 @@ type ChatMessage = {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  ts: number;
 };
 
 type HistoryItem = { role: 'user' | 'assistant'; content: string };
-
-type VoiceState = 'idle' | 'connecting' | 'active' | 'stopping';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -21,100 +23,136 @@ function uid(): string {
   return typeof crypto !== 'undefined' ? crypto.randomUUID() : Math.random().toString(36).slice(2);
 }
 
-/** Nearest-neighbour downsample from srcRate → dstRate */
-function downsample(f32: Float32Array, srcRate: number, dstRate: number): Float32Array {
-  const ratio = srcRate / dstRate;
-  const len = Math.floor(f32.length / ratio);
-  const out = new Float32Array(len);
-  for (let i = 0; i < len; i++) out[i] = f32[Math.floor(i * ratio)];
-  return out;
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Float32 PCM → Int16 PCM */
-function float32ToInt16(f32: Float32Array): ArrayBuffer {
-  const out = new Int16Array(f32.length);
-  for (let i = 0; i < f32.length; i++) {
-    const s = Math.max(-1, Math.min(1, f32[i]));
-    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-  }
-  return out.buffer;
+function getInitial(name?: string): string {
+  const c = name?.trim()?.[0];
+  return c ? c.toUpperCase() : 'U';
 }
 
-/** Int16 PCM (as ArrayBuffer) → Float32 */
-function int16ToFloat32(buf: ArrayBuffer): Float32Array {
-  const int16 = new Int16Array(buf);
-  const f32 = new Float32Array(int16.length);
-  for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768;
-  return f32;
+const SUGGESTIONS = [
+  'How many orders are pending?',
+  'Show me overdue orders',
+  "What's due in the next 3 days?",
+];
+
+// ── Small avatars ─────────────────────────────────────────────────────────────
+
+function AssistantAvatar({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn('shrink-0 rounded-full flex items-center justify-center text-primary-foreground shadow-sm', className)}
+      style={{ backgroundImage: 'linear-gradient(135deg, var(--primary), oklch(62% 0.26 300))' }}
+      aria-hidden="true"
+    >
+      <svg className="w-1/2 h-1/2" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2l1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7z" />
+      </svg>
+    </div>
+  );
 }
 
-/** Gap-free audio scheduler at 24 kHz */
-function makePlayer(ctx: AudioContext) {
-  let nextStart = 0;
-  return (pcmBuf: ArrayBuffer) => {
-    const f32 = int16ToFloat32(pcmBuf);
-    if (!f32.length) return;
-    const buf = ctx.createBuffer(1, f32.length, 24000);
-    buf.getChannelData(0).set(f32);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
-    const startAt = Math.max(ctx.currentTime, nextStart);
-    src.start(startAt);
-    nextStart = startAt + buf.duration;
-  };
+function UserAvatar({ initial, className }: { initial: string; className?: string }) {
+  return (
+    <div
+      className={cn(
+        'shrink-0 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold',
+        className
+      )}
+      aria-hidden="true"
+    >
+      {initial}
+    </div>
+  );
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ChatPanel() {
+export function ChatPanel({ userName }: { userName?: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const [voiceState, setVoiceState] = useState<VoiceState>('idle');
-  const [voiceError, setVoiceError] = useState('');
-  const [voiceInput, setVoiceInput] = useState('');
-  const [voiceOutput, setVoiceOutput] = useState('');
-  const [micLevel, setMicLevel] = useState(0);
+  const [showVoice, setShowVoice] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Voice refs
-  const wsRef = useRef<WebSocket | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const playCtxRef = useRef<AudioContext | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const processorRef = useRef<any>(null);
-  const playerRef = useRef<((buf: ArrayBuffer) => void) | null>(null);
-  const lastLevelTickRef = useRef(0);
+  const userInitial = getInitial(userName);
 
-  const supabase = useMemo(() => createClient(), []);
+  // ── Voice (Gemini Live, audio-to-audio) ──────────────────────────────────────
+  // Completed turns are committed straight into the unified message thread.
+  const handleVoiceTurn = useCallback((turn: { user: string; assistant: string }) => {
+    const now = Date.now();
+    setMessages(prev => [
+      ...prev,
+      ...(turn.user ? [{ id: uid(), role: 'user' as const, content: turn.user, ts: now }] : []),
+      ...(turn.assistant ? [{ id: uid(), role: 'assistant' as const, content: turn.assistant, ts: now + 1 }] : []),
+    ]);
+  }, []);
+
+  const { status: voiceStatus, error: voiceError, transcript, inputLevelRef, start, stop } =
+    useGeminiLive({ onTurnComplete: handleVoiceTurn });
+  const voiceActive = voiceStatus !== 'idle' && voiceStatus !== 'error';
+
+  const openVoice = useCallback(() => {
+    setShowVoice(true);
+    start();
+  }, [start]);
+
+  const stopVoice = useCallback(() => {
+    stop();
+    setShowVoice(false);
+  }, [stop]);
+
+  const typeInstead = useCallback(() => {
+    stop();
+    setShowVoice(false);
+    setTimeout(() => inputRef.current?.focus(), 80);
+  }, [stop]);
+
+  // Hide the voice overlay whenever the session is no longer live.
+  useEffect(() => {
+    if (!voiceActive) setShowVoice(false);
+  }, [voiceActive]);
+
+  // Stop the voice session when the panel closes.
+  useEffect(() => {
+    if (!isOpen) {
+      if (voiceActive) stop();
+      setShowVoice(false);
+    }
+  }, [isOpen, voiceActive, stop]);
+
+  // Surface voice connection errors.
+  useEffect(() => {
+    if (voiceError) toast.error(voiceError);
+  }, [voiceError]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, voiceInput, voiceOutput]);
+  }, [messages, isLoading, isOpen]);
 
   useEffect(() => {
-    if (isOpen) setTimeout(() => inputRef.current?.focus(), 100);
-  }, [isOpen]);
+    if (isOpen && !showVoice) setTimeout(() => inputRef.current?.focus(), 120);
+  }, [isOpen, showVoice]);
 
   // ── Text chat ───────────────────────────────────────────────────────────────
 
-  const sendMessage = useCallback(async () => {
-    const text = input.trim();
+  const sendMessage = useCallback(async (override?: string) => {
+    const text = (override ?? input).trim();
     if (!text || isLoading) return;
     setInput('');
 
-    const userMsg: ChatMessage = { id: uid(), role: 'user', content: text };
+    const userMsg: ChatMessage = { id: uid(), role: 'user', content: text, ts: Date.now() };
+    // Snapshot history BEFORE appending the new user message.
+    const history: HistoryItem[] = messages.map(m => ({ role: m.role, content: m.content }));
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
     try {
-      const history: HistoryItem[] = messages.map(m => ({ role: m.role, content: m.content }));
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -122,11 +160,11 @@ export function ChatPanel() {
       });
       if (!res.ok) throw new Error('Request failed');
       const { response } = await res.json() as { response: string };
-      setMessages(prev => [...prev, { id: uid(), role: 'assistant', content: response }]);
+      setMessages(prev => [...prev, { id: uid(), role: 'assistant', content: response, ts: Date.now() }]);
     } catch {
       setMessages(prev => [
         ...prev,
-        { id: uid(), role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
+        { id: uid(), role: 'assistant', content: 'Sorry, something went wrong. Please try again.', ts: Date.now() },
       ]);
     } finally {
       setIsLoading(false);
@@ -140,427 +178,242 @@ export function ChatPanel() {
     }
   };
 
-  // ── Voice cleanup ───────────────────────────────────────────────────────────
+  // ── Derived header state ──────────────────────────────────────────────────────
+  const subtitle =
+    voiceStatus === 'connecting' ? 'Connecting…'
+    : voiceStatus === 'speaking' ? 'Speaking…'
+    : voiceStatus === 'listening' ? 'Listening…'
+    : isLoading ? 'Typing…'
+    : 'Ask about your orders';
 
-  const cleanupVoice = useCallback(() => {
-    // Disconnect and stop processor
-    try { processorRef.current?.disconnect(); } catch {}
-    processorRef.current = null;
-
-    // Stop mic tracks
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-
-    // Close audio contexts
-    try { audioCtxRef.current?.close(); } catch {}
-    audioCtxRef.current = null;
-    try { playCtxRef.current?.close(); } catch {}
-    playCtxRef.current = null;
-
-    playerRef.current = null;
-    setMicLevel(0);
-  }, []);
-
-  // ── Stop voice ──────────────────────────────────────────────────────────────
-
-  const stopVoice = useCallback(() => {
-    setVoiceState('stopping');
-
-    // Signal server to flush audio before tearing down
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      try { wsRef.current.send(JSON.stringify({ type: 'stop' })); } catch {}
-    }
-    try { wsRef.current?.close(); } catch {}
-    wsRef.current = null;
-
-    cleanupVoice();
-
-    // Persist exchange into the message history
-    setVoiceInput(prevIn => {
-      setVoiceOutput(prevOut => {
-        const lines: string[] = [];
-        if (prevIn.trim()) lines.push(`You said: ${prevIn.trim()}`);
-        if (prevOut.trim()) lines.push(`Assistant: ${prevOut.trim()}`);
-        if (lines.length) {
-          setMessages(ms => [...ms, { id: uid(), role: 'assistant', content: lines.join('\n\n') }]);
-        }
-        return '';
-      });
-      return '';
-    });
-
-    setVoiceState('idle');
-  }, [cleanupVoice]);
-
-  // ── Start voice ─────────────────────────────────────────────────────────────
-
-  const startVoice = useCallback(async () => {
-    setVoiceError('');
-    setVoiceInput('');
-    setVoiceOutput('');
-    setMicLevel(0);
-    setVoiceState('connecting');
-
-    try {
-      // 1. Mic
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      streamRef.current = stream;
-
-      // 2. Recording context (default native rate, usually 48 kHz)
-      const recordCtx = new AudioContext();
-      audioCtxRef.current = recordCtx;
-      if (recordCtx.state === 'suspended') await recordCtx.resume();
-
-      // 3. Playback context for Gemini audio (24 kHz buffers)
-      const playCtx = new AudioContext();
-      playCtxRef.current = playCtx;
-      if (playCtx.state === 'suspended') await playCtx.resume();
-      playerRef.current = makePlayer(playCtx);
-
-      // 4. Open WebSocket to our server bridge
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/api/voice-ws`;
-      const ws = new WebSocket(wsUrl);
-      ws.binaryType = 'arraybuffer';
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        console.log('[voice] WebSocket to bridge open — waiting for Gemini session…');
-      };
-
-      ws.onmessage = (event) => {
-        // Binary = raw 24 kHz Int16 PCM audio from Gemini
-        if (event.data instanceof ArrayBuffer) {
-          playerRef.current?.(event.data);
-          return;
-        }
-
-        // Text = JSON control message
-        let msg: { type: string; role?: string; text?: string; message?: string };
-        try {
-          msg = JSON.parse(event.data as string);
-        } catch (parseErr) {
-          console.error('[voice] bad JSON from server:', event.data, parseErr);
-          return;
-        }
-
-        if (msg.type === 'ready') {
-          console.log('[voice] Gemini session ready — mic active');
-          setVoiceState('active');
-
-          try {
-            // 5. Wire up ScriptProcessorNode now that the session is ready
-            const source = recordCtx.createMediaStreamSource(stream);
-            // 4096-sample buffer: ~85 ms of audio per chunk at 48 kHz
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const processor = (recordCtx as any).createScriptProcessor(4096, 1, 1);
-            processorRef.current = processor;
-
-            processor.onaudioprocess = (e: AudioProcessingEvent) => {
-              if (ws.readyState !== WebSocket.OPEN) return;
-
-              const raw = e.inputBuffer.getChannelData(0);
-
-              // Mic level for the UI meter (throttled to ~10 Hz)
-              const now = performance.now();
-              if (now - lastLevelTickRef.current > 100) {
-                lastLevelTickRef.current = now;
-                let peak = 0;
-                for (let i = 0; i < raw.length; i++) {
-                  const abs = raw[i] < 0 ? -raw[i] : raw[i];
-                  if (abs > peak) peak = abs;
-                }
-                setMicLevel(peak);
-              }
-
-              // Downsample 48 kHz → 16 kHz and convert to Int16 PCM
-              const f16k = downsample(raw, recordCtx.sampleRate, 16000);
-              const pcm16 = float32ToInt16(f16k);
-              ws.send(pcm16);
-            };
-
-            // Silent sink so the audio graph actually runs
-            const sink = recordCtx.createGain();
-            sink.gain.value = 0;
-            source.connect(processor);
-            processor.connect(sink);
-            sink.connect(recordCtx.destination);
-
-            console.log('[voice] ScriptProcessorNode wired — sampleRate:', recordCtx.sampleRate);
-          } catch (setupErr) {
-            console.error('[voice] ScriptProcessorNode setup failed:', setupErr);
-            setVoiceError('Mic setup failed. Please try again.');
-            stopVoice();
-          }
-
-        } else if (msg.type === 'transcript') {
-          if (msg.role === 'user') setVoiceInput(prev => prev + (msg.text ?? ''));
-          else setVoiceOutput(prev => prev + (msg.text ?? ''));
-
-        } else if (msg.type === 'turn_complete') {
-          setVoiceInput(prev => prev && !prev.endsWith('\n') ? prev + '\n' : prev);
-          setVoiceOutput(prev => prev && !prev.endsWith('\n') ? prev + '\n' : prev);
-
-        } else if (msg.type === 'error') {
-          console.error('[voice] server error:', msg.message);
-          setVoiceError(msg.message || 'Voice error');
-          stopVoice();
-        }
-      };
-
-      ws.onerror = (e) => {
-        console.error('[voice] WebSocket error', e);
-        setVoiceError('Connection error. Please try again.');
-        stopVoice();
-      };
-
-      ws.onclose = (e) => {
-        console.log('[voice] WebSocket closed: code=', e.code, 'reason=', e.reason);
-        // Reset to idle from any non-stopping state (handles both 'connecting' and 'active')
-        setVoiceState(cur => {
-          if (cur !== 'stopping' && cur !== 'idle') {
-            cleanupVoice();
-            wsRef.current = null;
-            return 'idle';
-          }
-          return cur;
-        });
-      };
-
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to start voice';
-      console.error('[startVoice]', err);
-      setVoiceError(msg);
-      cleanupVoice();
-      setVoiceState('idle');
-    }
-  }, [stopVoice, cleanupVoice]);
-
-  // Cleanup on unmount
-  useEffect(() => () => {
-    try { wsRef.current?.close(); } catch {}
-    cleanupVoice();
-  }, [cleanupVoice]);
+  const statusDot = voiceStatus === 'speaking' ? 'bg-[var(--status-progress)]' : 'bg-emerald-500';
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  const isVoiceActive = voiceState === 'active';
-  const isVoiceConnecting = voiceState === 'connecting';
-  const isVoiceBusy = voiceState !== 'idle';
-
   return (
     <>
-      {/* ── Chat FAB ─────────────────────────────────────────────────────── */}
+      {/* ── Launcher FAB ─────────────────────────────────────────────────── */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 left-6 z-40 w-14 h-14 bg-card border border-border rounded-full shadow-lg flex items-center justify-center hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full flex items-center justify-center text-primary-foreground shadow-[0_8px_28px_-6px_var(--primary)] hover:scale-105 active:scale-95 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring min-tap"
+          style={{ backgroundImage: 'linear-gradient(135deg, var(--primary), oklch(62% 0.26 300))' }}
           aria-label="Open AI assistant"
         >
-          <svg className="w-6 h-6 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            <path d="M9.5 9.5l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" fill="currentColor" stroke="none" />
           </svg>
         </button>
       )}
 
-      {/* ── Chat panel ───────────────────────────────────────────────────── */}
+      {/* ── Floating widget ──────────────────────────────────────────────── */}
       {isOpen && (
         <div
-          className="fixed inset-x-0 bottom-0 z-50 flex flex-col bg-background border-t border-border rounded-t-2xl shadow-2xl"
-          style={{ height: '70dvh' }}
+          role="dialog"
+          aria-label="Order assistant"
+          className={cn(
+            glass.heavy,
+            'fixed z-50 flex flex-col overflow-hidden border border-border shadow-2xl rounded-[28px]',
+            'left-3 right-3 bottom-3 h-[min(78dvh,580px)]',
+            'sm:left-6 sm:right-auto sm:w-[392px] sm:h-[min(80dvh,600px)]',
+            'origin-bottom-left animate-in fade-in slide-in-from-bottom-4 zoom-in-95 duration-300'
+          )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-foreground text-sm">Order Assistant</span>
-              {isVoiceActive && (
-                <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"/>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"/>
-                  </span>
-                  Live
-                </span>
-              )}
-              {isVoiceConnecting && (
-                <span className="text-xs text-muted-foreground">Connecting…</span>
-              )}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border flex-shrink-0 bg-gradient-to-b from-primary/[0.06] to-transparent">
+            <div className="relative">
+              <AssistantAvatar className="w-9 h-9" />
+              <span className={cn('absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card', statusDot, voiceActive && 'animate-live-pulse')} />
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm text-foreground leading-tight tracking-tight">Order Assistant</p>
+              <p className="text-xs text-muted-foreground font-medium truncate">{subtitle}</p>
+            </div>
+            {messages.length > 0 && !showVoice && (
+              <button
+                onClick={() => setMessages([])}
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Clear conversation"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
+                </svg>
+              </button>
+            )}
             <button
               onClick={() => setIsOpen(false)}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground"
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Close assistant"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
           </div>
 
-          {/* Message area */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {messages.length === 0 && !isVoiceActive && !isVoiceConnecting && (
-              <div className="text-center text-sm text-muted-foreground mt-8 space-y-1">
-                <p className="font-medium text-foreground">Ask me about your orders</p>
-                <p>Try: "How many orders are pending?" or "What's overdue?"</p>
-              </div>
-            )}
-
-            {messages.map(msg => (
-              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap break-words ${
-                  msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground rounded-br-sm'
-                    : 'bg-muted text-foreground rounded-bl-sm'
-                }`}>
-                  {msg.content}
+          {/* ── Voice overlay ──────────────────────────────────────────── */}
+          {showVoice ? (
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-7 px-6 py-6 text-center">
+              {/* Orb + breathing glow */}
+              <div className="relative flex items-center justify-center">
+                <div
+                  className="absolute inset-0 -z-10 rounded-full blur-3xl opacity-50 animate-live-pulse"
+                  style={{ background: 'radial-gradient(circle, var(--primary), transparent 70%)' }}
+                  aria-hidden="true"
+                />
+                <div className="w-40 h-40 xs:w-44 xs:h-44">
+                  <Orb
+                    levelRef={inputLevelRef}
+                    hue={12}
+                    hoverIntensity={0.9}
+                    rotateOnHover
+                    forceHoverState={voiceStatus === 'speaking'}
+                    backgroundColor="#000000"
+                  />
                 </div>
               </div>
-            ))}
 
-            {/* Text loading indicator */}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-muted text-foreground rounded-2xl rounded-bl-sm px-3.5 py-2.5">
-                  <span className="flex gap-1 items-center h-4">
-                    <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:0ms]"/>
-                    <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:150ms]"/>
-                    <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:300ms]"/>
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* ── Voice connecting placeholder ── */}
-            {isVoiceConnecting && (
-              <div className="flex flex-col items-center justify-center gap-3 py-8">
-                <div className="flex items-end gap-1 h-8">
-                  {[0, 1, 2, 3, 4].map(i => (
-                    <span
-                      key={i}
-                      className="w-1 rounded-full bg-muted-foreground/40 animate-pulse"
-                      style={{
-                        height: `${14 + Math.sin(i * 0.8) * 10}px`,
-                        animationDelay: `${i * 100}ms`,
-                      }}
-                    />
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">Connecting to voice…</p>
-              </div>
-            )}
-
-            {/* ── Voice active panel ── */}
-            {isVoiceActive && (
-              <div className="space-y-3">
-                {/* Animated waveform + mic level */}
-                <div className="flex flex-col items-center gap-3 py-4">
-                  {/* Waveform bars */}
-                  <div className="flex items-end gap-1 h-10">
-                    {[0, 1, 2, 3, 4].map(i => {
-                      const base = 8;
-                      const boost = Math.round(micLevel * 80 * (0.6 + Math.sin(i * 1.2) * 0.4));
-                      return (
-                        <span
-                          key={i}
-                          className="w-1.5 rounded-full bg-emerald-500 transition-[height] duration-75"
-                          style={{ height: `${Math.max(base, Math.min(40, base + boost))}px` }}
-                        />
-                      );
-                    })}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {voiceInput ? 'Listening…' : 'Say something…'}
+              {/* Live transcription */}
+              <div className="min-h-[4rem] max-w-[92%] flex flex-col gap-2">
+                <p className="text-lg font-semibold text-foreground leading-snug text-balance">
+                  {transcript.user || (voiceStatus === 'connecting' ? 'Connecting…' : 'Listening… ask me anything')}
+                </p>
+                {transcript.assistant && (
+                  <p className="text-sm font-medium text-muted-foreground italic leading-snug text-balance">
+                    {transcript.assistant}
                   </p>
-                </div>
-
-                {/* You said */}
-                {voiceInput ? (
-                  <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3.5 py-3">
-                    <p className="text-[10px] uppercase tracking-widest text-primary/70 font-semibold mb-1.5">You</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{voiceInput}</p>
-                  </div>
-                ) : null}
-
-                {/* Assistant said */}
-                {voiceOutput ? (
-                  <div className="rounded-2xl border border-border bg-muted/40 px-3.5 py-3">
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1.5">Assistant</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{voiceOutput}</p>
-                  </div>
-                ) : null}
-              </div>
-            )}
-
-            {voiceError && (
-              <p className="text-xs text-destructive text-center py-1">{voiceError}</p>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input bar */}
-          <div className="flex-shrink-0 border-t border-border px-3 py-3 flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={isVoiceActive ? 'Voice active…' : 'Ask about orders…'}
-              disabled={isLoading || isVoiceActive}
-              className="flex-1 h-10 px-3.5 rounded-full border border-input bg-background text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-            />
-
-            {/* Send */}
-            <button
-              onClick={sendMessage}
-              disabled={!input.trim() || isLoading || isVoiceActive}
-              className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all"
-              aria-label="Send message"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-              </svg>
-            </button>
-
-            {/* Mic / Stop */}
-            {!isVoiceActive ? (
-              <button
-                onClick={startVoice}
-                disabled={isVoiceBusy || isLoading}
-                className="w-10 h-10 rounded-full border border-border bg-card text-foreground flex items-center justify-center flex-shrink-0 disabled:opacity-40 hover:bg-muted active:scale-95 transition-all"
-                aria-label="Start voice"
-              >
-                {isVoiceConnecting ? (
-                  <svg className="w-4 h-4 animate-spin text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                    <line x1="12" y1="19" x2="12" y2="23"/>
-                    <line x1="8" y1="23" x2="16" y2="23"/>
-                  </svg>
                 )}
+              </div>
+
+              {/* Status pill */}
+              <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <span className={cn('w-2 h-2 rounded-full', voiceStatus === 'connecting' ? 'bg-muted-foreground animate-pulse' : statusDot, voiceStatus !== 'connecting' && 'animate-live-pulse')} />
+                {subtitle}
+              </div>
+            </div>
+          ) : (
+            /* ── Message thread ───────────────────────────────────────── */
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3.5 py-4 space-y-2.5">
+              {messages.length === 0 && !isLoading && (
+                <div className="h-full flex flex-col items-center justify-center text-center px-4 gap-4">
+                  <AssistantAvatar className="w-14 h-14" />
+                  <div className="space-y-1">
+                    <p className="font-bold text-foreground text-base tracking-tight">Hi! I&apos;m your order assistant</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">Ask me anything about your orders — type below, or tap the mic to talk in English, Hindi or Gujarati.</p>
+                  </div>
+                  <div className="flex flex-col gap-2 w-full max-w-[280px] mt-1">
+                    {SUGGESTIONS.map(s => (
+                      <button
+                        key={s}
+                        onClick={() => sendMessage(s)}
+                        className="w-full text-left px-3.5 py-2.5 rounded-2xl border border-border bg-card/60 hover:bg-muted hover:border-primary/30 transition-colors text-sm font-medium text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {messages.map((msg, i, arr) => {
+                const isUser = msg.role === 'user';
+                const prev = arr[i - 1];
+                const showAvatar = !prev || prev.role !== msg.role;
+                return (
+                  <div key={msg.id} className={cn('flex items-end gap-2 animate-in fade-in slide-in-from-bottom-1 duration-200', isUser ? 'justify-end' : 'justify-start')}>
+                    {!isUser && (showAvatar ? <AssistantAvatar className="w-7 h-7" /> : <span className="w-7 shrink-0" aria-hidden="true" />)}
+                    <div className={cn('max-w-[78%] flex flex-col', isUser ? 'items-end' : 'items-start')}>
+                      <div className={cn(
+                        'rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words shadow-sm',
+                        isUser ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
+                      )}>
+                        {msg.content}
+                      </div>
+                      <span className="px-1 mt-0.5 text-[10px] font-medium text-muted-foreground/70">{formatTime(msg.ts)}</span>
+                    </div>
+                    {isUser && (showAvatar ? <UserAvatar initial={userInitial} className="w-7 h-7 text-[11px]" /> : <span className="w-7 shrink-0" aria-hidden="true" />)}
+                  </div>
+                );
+              })}
+
+              {/* Loading indicator */}
+              {isLoading && (
+                <div className="flex items-end gap-2 justify-start">
+                  <AssistantAvatar className="w-7 h-7" />
+                  <div className="bg-muted text-foreground rounded-2xl rounded-bl-md px-3.5 py-3">
+                    <span className="flex gap-1 items-center h-2">
+                      <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:0ms]" />
+                      <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:150ms]" />
+                      <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce [animation-delay:300ms]" />
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+
+          {/* ── Footer ─────────────────────────────────────────────────── */}
+          {showVoice ? (
+            <div className="flex-shrink-0 border-t border-border px-4 py-3 flex items-center justify-center gap-3">
+              <button
+                onClick={typeInstead}
+                className="flex items-center gap-2 h-11 px-5 rounded-full bg-muted text-foreground text-sm font-semibold hover:bg-muted/70 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
+                </svg>
+                Type
               </button>
-            ) : (
               <button
                 onClick={stopVoice}
-                className="px-3 h-10 rounded-full bg-destructive text-destructive-foreground text-xs font-semibold flex items-center gap-1.5 flex-shrink-0 hover:opacity-90 active:scale-95 transition-all"
-                aria-label="Stop voice"
+                className="flex items-center gap-2 h-11 px-5 rounded-full bg-destructive text-destructive-foreground text-sm font-semibold hover:opacity-90 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Stop voice assistant"
               >
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="6" width="12" height="12" rx="1"/>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
                 </svg>
                 Stop
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex-shrink-0 border-t border-border px-3 py-3 flex items-center gap-2">
+              {/* Mic → opens voice overlay */}
+              <button
+                onClick={openVoice}
+                className="w-11 h-11 rounded-full bg-muted text-foreground flex items-center justify-center flex-shrink-0 hover:bg-muted/70 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Talk to the assistant"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              </button>
+
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask about orders…"
+                disabled={isLoading}
+                className="flex-1 h-11 px-4 rounded-full border border-input bg-background/70 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+              />
+
+              <button
+                onClick={() => sendMessage()}
+                disabled={!input.trim() || isLoading}
+                className="w-11 h-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0 disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Send message"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>
