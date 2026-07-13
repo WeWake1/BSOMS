@@ -43,7 +43,9 @@
       "Bash(sed -n '/\"dependencies\"/,/}/p' /Users/wewake/AnitGrav/BhaktiSales/package.json)",
       "WebFetch(domain:wapikon.com)",
       "WebFetch(domain:docs.wapikon.com)",
-      "WebFetch(domain:supabase.com)"
+      "WebFetch(domain:supabase.com)",
+      "Skill(run)",
+      "Skill(run:*)"
     ]
   }
 }

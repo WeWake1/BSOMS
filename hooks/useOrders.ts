@@ -4,6 +4,22 @@ import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { OrderWithCategoryAndItems, Category } from '@/types/database';
 
+// Dispatched orders older than this are archived out of the dashboard UI to
+// cut clutter. The rows stay in the database untouched — this only affects
+// what useOrders() returns.
+const DISPATCHED_VISIBILITY_MONTHS = 2;
+
+function getDispatchCutoffISODate(): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() - DISPATCHED_VISIBILITY_MONTHS);
+  return d.toISOString().split('T')[0];
+}
+
+function isOrderVisible(order: { status: string; dispatch_date: string | null }, cutoffISODate: string): boolean {
+  if (order.status !== 'Dispatched' || !order.dispatch_date) return true;
+  return order.dispatch_date >= cutoffISODate;
+}
+
 export function useOrders() {
   const [orders, setOrders] = useState<OrderWithCategoryAndItems[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -52,9 +68,11 @@ export function useOrders() {
         if (catsError) throw catsError;
         if (mounted) setCategories(cats || []);
 
+        const cutoff = getDispatchCutoffISODate();
         const { data: ords, error: ordsError } = await supabase
           .from('orders')
           .select('*, categories(*)')
+          .or(`status.neq.Dispatched,dispatch_date.gte.${cutoff},dispatch_date.is.null`)
           .order('created_at', { ascending: false });
 
         if (ordsError) throw ordsError;
@@ -77,6 +95,7 @@ export function useOrders() {
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const newOrder = payload.new as any;
+            if (!isOrderVisible(newOrder, getDispatchCutoffISODate())) return;
             supabase
               .from('categories')
               .select('*')
@@ -89,6 +108,11 @@ export function useOrders() {
               });
           } else if (payload.eventType === 'UPDATE') {
             const updatedOrder = payload.new as any;
+            if (!isOrderVisible(updatedOrder, getDispatchCutoffISODate())) {
+              // Just aged out (or was backdated) past the visibility window — drop it if present.
+              setOrders((prev) => prev.filter((o) => o.id !== updatedOrder.id));
+              return;
+            }
             supabase
               .from('categories')
               .select('*')
@@ -96,13 +120,16 @@ export function useOrders() {
               .single()
               .then(({ data: cat }) => {
                 updatedOrder.categories = cat;
-                setOrders((prev) =>
-                  prev.map((o) =>
+                setOrders((prev) => {
+                  const exists = prev.some((o) => o.id === updatedOrder.id);
+                  // Wasn't in the list (previously hidden, now visible again e.g. un-dispatched) — add it.
+                  if (!exists) return [updatedOrder as OrderWithCategoryAndItems, ...prev];
+                  return prev.map((o) =>
                     o.id === updatedOrder.id
                       ? (updatedOrder as OrderWithCategoryAndItems)
                       : o
-                  )
-                );
+                  );
+                });
                 addFlash(updatedOrder.id);
               });
           } else if (payload.eventType === 'DELETE') {
