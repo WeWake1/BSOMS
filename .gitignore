@@ -39,6 +39,9 @@ next-env.d.ts
 OrderFlow_Proposal.docx
 OrderFlow_Proposal_v2.docx
 
+# Repomix generated snapshots
+repomix-output.*
+
 # Gemini-live-api-example-implementation from google themselves
 gemini-live-api-examples
 
