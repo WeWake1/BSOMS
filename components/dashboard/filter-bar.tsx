@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import type { Category, OrderStatus } from '@/types/database';
 import { Select, SelectItem, SelectTrigger, SelectValue, SelectPopover, SelectListBox } from '@/components/ui/select';
-import { cn, glass } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 interface FilterBarProps {
   searchQuery: string;
@@ -234,7 +234,7 @@ export function FilterBar({
   };
 
   return (
-    <div className={cn(glass.medium, "sticky top-0 z-40 -mx-4 px-4 py-3 border-b border-border shadow-sm mb-4 transition-colors duration-200")}>
+    <div className="bg-background sticky top-0 z-40 -mx-4 px-4 py-3 border-b border-border shadow-sm mb-4 transition-colors duration-200">
       <div className="flex flex-col gap-2">
 
         {/* Row 1: View toggle + Search */}
@@ -284,8 +284,8 @@ export function FilterBar({
             />
 
             {/* Autocomplete suggestions — portaled out of the sticky filter
-                bar's backdrop-filter root so the dropdown's own blur reaches
-                the page content underneath. */}
+                bar so the dropdown escapes its stacking/overflow context and
+                renders above the page content underneath. */}
             {showSuggestions && suggestions.length > 0 && typeof document !== 'undefined' && createPortal(
               <ul
                 ref={suggestionsRef}
@@ -293,7 +293,7 @@ export function FilterBar({
                 role="listbox"
                 aria-label="Customer name suggestions"
                 style={{ position: 'fixed', top: suggestionPos.top, left: suggestionPos.left, width: suggestionPos.width, zIndex: 9999 }}
-                className={cn(glass.light, "border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100")}
+                className="bg-card border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
               >
                 {suggestions.map((name, idx) => (
                   <li
@@ -367,7 +367,7 @@ export function FilterBar({
               <div
                 ref={catDropdownRef}
                 style={{ position: 'fixed', top: catPos.top, left: catPos.left, minWidth: Math.max(catPos.width, 180), zIndex: 9999 }}
-                className={cn(glass.light, "border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100")}
+                className="bg-card border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
               >
                 {selectedCategories.length > 0 && (
                   <div className="px-3 pt-2 pb-1 border-b border-border">

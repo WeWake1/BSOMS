@@ -55,7 +55,7 @@ export function ConfirmDialog({
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+        className="absolute inset-0 bg-black/50 animate-in fade-in duration-150"
         onClick={onCancel}
         aria-hidden
       />

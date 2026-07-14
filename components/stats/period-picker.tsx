@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { cn, glass } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import {
   buildPeriod, toISODate, addDays, toMonthKey, addMonths, parseMonthKey, monthLabel,
   type Period, type PeriodPreset,
@@ -25,7 +25,7 @@ export function PeriodPicker({ period, onChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Refs + position for portaled dropdowns (kept out of the sticky parent's
-  // backdrop-filter root so child blur reaches page content).
+  // stacking/overflow context so they render above page content).
   const monthBtnRef = useRef<HTMLButtonElement>(null);
   const yearBtnRef = useRef<HTMLButtonElement>(null);
   const customBtnRef = useRef<HTMLButtonElement>(null);
@@ -129,7 +129,7 @@ export function PeriodPicker({ period, onChange }: Props) {
   return (
     <div
       ref={containerRef}
-      className={cn(glass.medium, "sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-3 pb-3 border-b border-border/50")}
+      className="bg-background sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-3 pb-3 border-b border-border/50"
     >
       <div className="flex items-center gap-1.5 flex-wrap">
         <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
@@ -197,15 +197,15 @@ export function PeriodPicker({ period, onChange }: Props) {
         </button>
       </div>
 
-      {/* Portaled dropdowns — escape the sticky bar's backdrop-filter root so
-          their own backdrop-blur reaches page content underneath. */}
+      {/* Portaled dropdowns — escape the sticky bar's stacking/overflow
+          context so they render above page content underneath. */}
       {typeof document !== 'undefined' && openDropdown && createPortal(
         <div
           ref={dropdownPanelRef}
           style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
         >
           {openDropdown === 'month' && (
-            <div className={cn(glass.light, "w-[180px] border border-border rounded-2xl shadow-xl p-1.5 max-h-[280px] overflow-y-auto animate-in fade-in zoom-in-95 duration-150")}>
+            <div className="bg-card w-[180px] border border-border rounded-2xl shadow-xl p-1.5 max-h-[280px] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
               <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Select month</p>
               {monthOptions.map(mKey => {
                 const isSelected = isMonthActive && mKey === selectedMonthKey;
@@ -234,7 +234,7 @@ export function PeriodPicker({ period, onChange }: Props) {
           )}
 
           {openDropdown === 'year' && (
-            <div className={cn(glass.light, "w-[140px] border border-border rounded-2xl shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-150")}>
+            <div className="bg-card w-[140px] border border-border rounded-2xl shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-150">
               <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1.5">Select year</p>
               {yearOptions.map(yr => {
                 const isSelected = isYearActive && yr === selectedYear;
@@ -261,7 +261,7 @@ export function PeriodPicker({ period, onChange }: Props) {
           )}
 
           {openDropdown === 'custom' && (
-            <div className={cn(glass.light, "w-[280px] border border-border rounded-2xl shadow-xl p-4 animate-in fade-in zoom-in-95 duration-150")}>
+            <div className="bg-card w-[280px] border border-border rounded-2xl shadow-xl p-4 animate-in fade-in zoom-in-95 duration-150">
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Quick</p>
               <button
                 onClick={applyLast6Months}

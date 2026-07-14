@@ -220,7 +220,7 @@ export function QuoteClient({ user }: { user: AuthUser }) {
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search products to add…"
                 aria-label="Search products"
-                className="w-full h-12 pl-10 pr-10 rounded-2xl border border-border bg-card/95 backdrop-blur-md text-foreground text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full h-12 pl-10 pr-10 rounded-2xl border border-border bg-card text-foreground text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
               {search && (
                 <button type="button" onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted min-tap">

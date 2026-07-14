@@ -10,7 +10,7 @@ import {
   composeRenderProps,
 } from "react-aria-components"
 
-import { cn, glass } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const PopoverTrigger = AriaDialogTrigger
 
@@ -20,7 +20,7 @@ const Popover = ({ className, offset = 4, ...props }: AriaPopoverProps) => {
     offset={offset}
     className={composeRenderProps(className, (className) =>
       cn(
-        glass.light,
+        "bg-card",
         "z-50 rounded-md border text-popover-foreground shadow-md outline-none",
         /* Entering */
         "data-[entering]:animate-in data-[entering]:fade-in-0 data-[entering]:zoom-in-95",

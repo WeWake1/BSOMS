@@ -172,7 +172,7 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/10 transition-colors flex items-center justify-center">
-                  <div className="bg-card/90 backdrop-blur rounded-full px-3 py-1.5 text-xs font-semibold text-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                  <div className="bg-card rounded-full px-3 py-1.5 text-xs font-semibold text-foreground opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
                     Tap to expand
                   </div>
                 </div>
@@ -287,7 +287,7 @@ export function OrderDetailSheet({ order, isOpen, onClose, isAdmin, onEdit }: Or
           />
           <button
             ref={closePhotoRef}
-            className="absolute top-4 right-4 w-11 h-11 bg-foreground/20 text-card rounded-full flex items-center justify-center backdrop-blur hover:bg-foreground/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute top-4 right-4 w-11 h-11 bg-foreground/50 text-card rounded-full flex items-center justify-center hover:bg-foreground/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             onClick={(e) => { e.stopPropagation(); setPhotoExpanded(false); }}
             aria-label="Close full-size photo"
           >

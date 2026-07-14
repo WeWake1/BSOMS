@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGeminiLive } from '@/hooks/useGeminiLive';
 import Orb from '@/components/ui/orb';
-import { cn, glass } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -213,7 +213,7 @@ export function ChatPanel({ userName }: { userName?: string }) {
           role="dialog"
           aria-label="Order assistant"
           className={cn(
-            glass.heavy,
+            'bg-card',
             'fixed z-50 flex flex-col overflow-hidden border border-border shadow-2xl rounded-[28px]',
             'left-3 right-3 bottom-3 h-[min(78dvh,580px)]',
             'sm:left-6 sm:right-auto sm:w-[392px] sm:h-[min(80dvh,600px)]',

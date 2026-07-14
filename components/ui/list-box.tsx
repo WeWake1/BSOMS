@@ -12,7 +12,7 @@ import {
   composeRenderProps,
 } from "react-aria-components"
 
-import { cn, glass } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 const ListBoxSection = AriaSection
 
@@ -27,7 +27,7 @@ function ListBox<T extends object>({
       className={composeRenderProps(className, (className) =>
         cn(
           className,
-          glass.light,
+          "bg-card",
           "group overflow-auto rounded-md border p-1 text-popover-foreground shadow-md outline-none",
           /* Empty */
           "data-[empty]:p-6 data-[empty]:text-center data-[empty]:text-sm"

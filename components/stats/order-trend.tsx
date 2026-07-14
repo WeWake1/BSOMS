@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { cn, glass } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { DayBucket } from '@/lib/stats-utils';
 
 type Metric = 'orders' | 'qty' | 'dispatched';
@@ -124,7 +124,7 @@ export function OrderTrend({ data, title = 'Order Trend', subtitle = 'Daily acti
   );
 }
 
-// ── Custom chart tooltip (frosted glass) ───────────────────────────────────
+// ── Custom chart tooltip ────────────────────────────────────────────────────
 interface OrderTrendTooltipProps {
   active?: boolean;
   payload?: any[];
@@ -138,7 +138,7 @@ function OrderTrendTooltip({ active, payload, label, metricLabel }: OrderTrendTo
   if (value === undefined) return null;
 
   return (
-    <div className={cn(glass.light, "border border-border rounded-xl shadow-2xl p-3 min-w-[140px]")}>
+    <div className="bg-card border border-border rounded-xl shadow-2xl p-3 min-w-[140px]">
       <div className="flex items-baseline justify-between gap-3 pb-2 mb-2 border-b border-border/60">
         <span className="text-xs font-extrabold text-foreground tracking-tight">{label}</span>
       </div>

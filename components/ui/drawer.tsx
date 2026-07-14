@@ -59,7 +59,7 @@ export function Drawer({ isOpen, onClose, children, title, titleTransitionName }
       {/* Backdrop */}
       <button
         className={cn(
-          'absolute inset-0 bg-black/40 backdrop-blur-sm cursor-default focus:outline-none w-full h-full text-transparent transition-opacity duration-300',
+          'absolute inset-0 bg-black/40 cursor-default focus:outline-none w-full h-full text-transparent transition-opacity duration-300',
           isOpen ? 'opacity-100' : 'opacity-0'
         )}
         onClick={onClose}
