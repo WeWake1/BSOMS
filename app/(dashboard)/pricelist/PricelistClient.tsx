@@ -47,7 +47,7 @@ interface FormState {
 
 export function PricelistClient({ user }: { user: AuthUser }) {
   const isAdmin = user.profile.role === 'admin';
-  const { tree, suppliers, defaultMarginPct, loading, error } = usePricelist(isAdmin);
+  const { tree, suppliers, defaultMarginPct, loading, error, reload } = usePricelist(isAdmin);
   const [supabase] = useState(() => createClient());
 
   const [view, setView] = useState<View>('grid');
@@ -261,10 +261,16 @@ export function PricelistClient({ user }: { user: AuthUser }) {
           <DefaultMarginEditor
             value={defaultMarginPct}
             onSave={async (pct) => {
+              // .select().single() surfaces silent 0-row failures (e.g. RLS)
+              // as errors instead of fake success.
               const { error: err } = await (supabase.from('pricelist_settings') as any)
                 .update({ default_margin_pct: pct })
-                .eq('id', 1);
+                .eq('id', 1)
+                .select('default_margin_pct')
+                .single();
               if (err) throw err;
+              // Refresh immediately — don't depend on realtime for our own edit.
+              await reload();
             }}
           />
         </div>

@@ -98,14 +98,18 @@ create trigger pricelist_prices_touch_node
   after insert or update or delete on pricelist_prices
   for each row execute function touch_pricelist_node();
 
--- Default-margin change reprices everything ⇒ touch all nodes.
+-- Default-margin change reprices everything ⇒ touch every PRODUCT node.
+-- NOTE: must carry a WHERE clause — Supabase loads safeupdate on API
+-- connections, which rejects unqualified UPDATEs (breaks the whole save).
 create or replace function touch_all_pricelist_nodes()
 returns trigger
 language plpgsql
 set search_path = public
 as $$
 begin
-  update pricelist_nodes set updated_at = now();
+  update pricelist_nodes
+     set updated_at = now()
+   where kind = 'product';
   return new;
 end $$;
 

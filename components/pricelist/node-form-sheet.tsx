@@ -288,48 +288,38 @@ export function NodeFormSheet({
                   const selling =
                     rateNum != null ? Math.round(rateNum * (1 + marginNum / 100)) : null;
                   return (
-                    <div key={i} className="rounded-xl border border-border p-2.5 flex flex-col gap-2">
-                      <div className="flex items-end gap-2">
-                        <div className="w-24 shrink-0">
+                    <div key={i} className="rounded-xl border border-border p-2.5 flex flex-col gap-1.5">
+                      <div className="flex items-end gap-1.5">
+                        <div className="w-16 shrink-0">
                           <Input
-                            label="Size (opt.)"
+                            label="Size"
                             aria-label="Size or label"
                             placeholder="18mm"
+                            className="px-2"
                             value={t.label}
                             onChange={(e) => updateTier(i, { label: e.target.value })}
                           />
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="w-28 shrink-0">
                           <Input
                             label="Rate (₹)"
                             aria-label="Purchase rate"
                             type="number"
                             inputMode="decimal"
                             placeholder="2400"
+                            className="px-2"
                             value={t.rate}
                             onChange={(e) => updateTier(i, { rate: e.target.value })}
                           />
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeTier(i)}
-                          disabled={tiers.length === 1}
-                          aria-label="Remove price row"
-                          className="w-11 h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-30 shrink-0"
-                        >
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="5" y1="12" x2="19" y2="12" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div className="flex items-end gap-2">
-                        <div className="w-24 shrink-0">
+                        <div className="w-16 shrink-0">
                           <Input
-                            label="Margin %"
+                            label="Margin"
                             aria-label="Selling margin percent"
                             type="number"
                             inputMode="decimal"
-                            placeholder={String(defaultMarginPct)}
+                            placeholder={`${defaultMarginPct}%`}
+                            className="px-2"
                             value={t.margin}
                             onChange={(e) => updateTier(i, { margin: e.target.value })}
                           />
@@ -340,10 +330,22 @@ export function NodeFormSheet({
                             aria-label="Unit"
                             list="pricelist-units"
                             placeholder="per sheet"
+                            className="px-2"
                             value={t.unit}
                             onChange={(e) => updateTier(i, { unit: e.target.value })}
                           />
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => removeTier(i)}
+                          disabled={tiers.length === 1}
+                          aria-label="Remove price row"
+                          className="w-9 h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-30 shrink-0"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                        </button>
                       </div>
                       {selling != null && (
                         <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
