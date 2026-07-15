@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { toPng } from 'html-to-image';
@@ -15,6 +15,9 @@ import {
   lowestPrice,
   formatRupees,
   formatPrice,
+  applyMargin,
+  sellingRate,
+  treeWithSellingRates,
 } from '@/lib/pricelist-utils';
 import {
   generateQuotePDF,
@@ -31,13 +34,16 @@ interface Selection {
   path: string[];
   priceId: string | null;
   qty: number;
+  /** Quote-only margin % override (admin). Blank = tier's own default.
+   *  Never written back to the database. */
+  marginPct: string;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function QuoteClient({ user }: { user: AuthUser }) {
-  void user;
-  const { tree, loading } = usePricelist();
+  const isAdmin = user.profile.role === 'admin';
+  const { tree, defaultMarginPct, loading } = usePricelist(isAdmin);
 
   const [view, setView] = useState<'select' | 'review'>('select');
   const [search, setSearch] = useState('');
@@ -54,30 +60,50 @@ export function QuoteClient({ user }: { user: AuthUser }) {
   const [exporting, setExporting] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const flat = useMemo(() => flattenProducts(tree), [tree]);
-  const pathById = useMemo(
-    () => new Map(flat.map((f) => [f.node.id, f.path])),
-    [flat]
+  // Raw tree = purchase rates for admin / selling rates for staff (their data
+  // arrives pre-marked-up). Selections always store RAW nodes so the admin's
+  // margin math has the purchase rate to work from.
+  const flatRaw = useMemo(() => flattenProducts(tree), [tree]);
+  const rawById = useMemo(
+    () => new Map(flatRaw.map((f) => [f.node.id, f.node])),
+    [flatRaw]
   );
+  const pathById = useMemo(
+    () => new Map(flatRaw.map((f) => [f.node.id, f.path])),
+    [flatRaw]
+  );
+
+  // Quotes are in SELLING terms — the picker must display selling prices.
+  // (For staff this transform is an identity: margins are null and the
+  // default is 0, because their rates are already selling.)
+  const displayTree = useMemo(
+    () => treeWithSellingRates(tree, defaultMarginPct),
+    [tree, defaultMarginPct]
+  );
+  const flatDisplay = useMemo(() => flattenProducts(displayTree), [displayTree]);
   const query = search.trim();
   const results = useMemo(
-    () => (query ? flat.filter((p) => productMatches(p, query)) : []),
-    [flat, query]
+    () => (query ? flatDisplay.filter((p) => productMatches(p, query)) : []),
+    [flatDisplay, query]
   );
 
   const selectedIds = useMemo(() => new Set(selections.keys()), [selections]);
 
   const toggleSelect = (node: PricelistNodeWithRelations) => {
+    // The picker hands out selling-mapped clones — resolve back to the raw node.
+    const raw = rawById.get(node.id) ?? node;
     setSelections((prev) => {
       const next = new Map(prev);
-      if (next.has(node.id)) {
-        next.delete(node.id);
+      if (next.has(raw.id)) {
+        next.delete(raw.id);
       } else {
-        next.set(node.id, {
-          node,
-          path: pathById.get(node.id) ?? [],
-          priceId: lowestPrice(node.prices)?.id ?? null,
+        const price = lowestPrice(raw.prices);
+        next.set(raw.id, {
+          node: raw,
+          path: pathById.get(raw.id) ?? [],
+          priceId: price?.id ?? null,
           qty: 1,
+          marginPct: String(price?.margin_pct ?? defaultMarginPct),
         });
       }
       return next;
@@ -100,16 +126,33 @@ export function QuoteClient({ user }: { user: AuthUser }) {
       return next;
     });
 
-  // Build quote lines (Map preserves insertion order)
+  // Effective margin % for a selection: its quote-only override if valid,
+  // else the chosen tier's own margin, else the global default.
+  const selectionMarginPct = useCallback(
+    (s: Selection): number => {
+      const n = Number(s.marginPct);
+      if (s.marginPct.trim() !== '' && Number.isFinite(n)) return n;
+      const price = s.priceId ? s.node.prices.find((p) => p.id === s.priceId) : null;
+      return price?.margin_pct ?? defaultMarginPct;
+    },
+    [defaultMarginPct]
+  );
+
+  // Build quote lines (Map preserves insertion order). The line's price is a
+  // clone with the SELLING rate baked in, so totals, the PDF, and the image
+  // card all stay margin-unaware. (Staff: margin 0 → identity.)
   const lines: QuoteLine[] = useMemo(
     () =>
-      Array.from(selections.values()).map((s) => ({
-        node: s.node,
-        path: s.path,
-        price: s.priceId ? s.node.prices.find((p) => p.id === s.priceId) ?? null : null,
-        qty: s.qty,
-      })),
-    [selections]
+      Array.from(selections.values()).map((s) => {
+        const raw = s.priceId ? s.node.prices.find((p) => p.id === s.priceId) ?? null : null;
+        return {
+          node: s.node,
+          path: s.path,
+          price: raw ? { ...raw, rate: applyMargin(raw.rate, selectionMarginPct(s)) } : null,
+          qty: s.qty,
+        };
+      }),
+    [selections, selectionMarginPct]
   );
   const total = useMemo(() => quoteTotal(lines), [lines]);
 
@@ -270,7 +313,7 @@ export function QuoteClient({ user }: { user: AuthUser }) {
           ) : (
             <div className="rounded-2xl border border-border bg-card p-1.5">
               <PricelistTree
-                nodes={tree}
+                nodes={displayTree}
                 expanded={expanded}
                 onToggle={toggle}
                 onSelectProduct={(node) => toggleSelect(node)}
@@ -312,6 +355,9 @@ export function QuoteClient({ user }: { user: AuthUser }) {
           onImage={handleImage}
           exporting={exporting}
           canGenerate={canGenerate}
+          isAdmin={isAdmin}
+          defaultMarginPct={defaultMarginPct}
+          selectionMarginPct={selectionMarginPct}
         />
       )}
 
@@ -340,6 +386,9 @@ function ReviewView({
   onImage,
   exporting,
   canGenerate,
+  isAdmin,
+  defaultMarginPct,
+  selectionMarginPct,
 }: {
   lines: QuoteLine[];
   selections: Map<string, Selection>;
@@ -354,6 +403,9 @@ function ReviewView({
   onImage: () => void;
   exporting: boolean;
   canGenerate: boolean;
+  isAdmin: boolean;
+  defaultMarginPct: number;
+  selectionMarginPct: (s: Selection) => number;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -362,6 +414,11 @@ function ReviewView({
         {lines.map((l) => {
           const sel = selections.get(l.node.id)!;
           const amt = lineAmount(l);
+          // Raw tier (admin: purchase rate) behind this line's selling price.
+          const rawPrice = sel.priceId
+            ? sel.node.prices.find((p) => p.id === sel.priceId) ?? null
+            : null;
+          const linePct = selectionMarginPct(sel);
           return (
             <div key={l.node.id} className="rounded-2xl border border-border bg-card p-3">
               <div className="flex items-start justify-between gap-2">
@@ -388,12 +445,20 @@ function ReviewView({
                   ) : (
                     <select
                       value={sel.priceId ?? ''}
-                      onChange={(e) => updateSelection(l.node.id, { priceId: e.target.value || null })}
+                      onChange={(e) => {
+                        const np = l.node.prices.find((pp) => pp.id === e.target.value) ?? null;
+                        // Switching tiers resets the quote-only margin to that tier's default.
+                        updateSelection(l.node.id, {
+                          priceId: e.target.value || null,
+                          marginPct: String(np?.margin_pct ?? defaultMarginPct),
+                        });
+                      }}
                       className="w-full h-10 px-2.5 rounded-xl border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     >
                       {l.node.prices.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.label} — {formatPrice(p)}
+                          {/* Quotes are in selling terms (identity for staff). */}
+                          {p.label} — {formatPrice({ ...p, rate: sellingRate(p, defaultMarginPct) })}
                         </option>
                       ))}
                     </select>
@@ -418,6 +483,33 @@ function ReviewView({
                   </div>
                 </div>
               </div>
+
+              {/* Admin-only: quote-scoped margin override. Staff never see
+                  margins — they'd expose the purchase price. */}
+              {isAdmin && rawPrice && (
+                <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-dashed border-border">
+                  <label
+                    htmlFor={`margin-${l.node.id}`}
+                    className="text-xs font-semibold text-muted-foreground shrink-0"
+                  >
+                    Margin
+                  </label>
+                  <input
+                    id={`margin-${l.node.id}`}
+                    type="number"
+                    inputMode="decimal"
+                    value={sel.marginPct}
+                    onChange={(e) => updateSelection(l.node.id, { marginPct: e.target.value })}
+                    className="w-16 h-8 px-1.5 rounded-lg border border-border bg-card text-foreground text-sm font-bold text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+                    aria-label={`Margin percent for ${l.node.name} (this quote only)`}
+                  />
+                  <span className="text-sm font-bold text-foreground">%</span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    Cost {formatRupees(rawPrice.rate)} → {formatRupees(applyMargin(rawPrice.rate, linePct))}
+                    <span className="hidden sm:inline"> · this quote only</span>
+                  </span>
+                </div>
+              )}
             </div>
           );
         })}

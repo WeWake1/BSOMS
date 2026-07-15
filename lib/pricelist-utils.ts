@@ -101,6 +101,43 @@ export function lowestPrice(prices: PricelistPrice[]): PricelistPrice | null {
   return prices.reduce((lo, p) => (p.rate < lo.rate ? p : lo), prices[0]);
 }
 
+// ─── Selling-price helpers (purchase × margin, rounded to ₹1) ──────────
+
+/** Effective margin % for a tier: its own override, else the global default. */
+export function effectiveMarginPct(
+  price: Pick<PricelistPrice, 'margin_pct'>,
+  defaultMarginPct: number
+): number {
+  return price.margin_pct ?? defaultMarginPct;
+}
+
+/** Selling rate for an arbitrary purchase rate + margin %, rounded to ₹1. */
+export function applyMargin(rate: number, marginPct: number): number {
+  return Math.round(rate * (1 + marginPct / 100));
+}
+
+/** Selling rate of one tier (admin-side compute; staff rows already carry it). */
+export function sellingRate(price: PricelistPrice, defaultMarginPct: number): number {
+  return applyMargin(price.rate, effectiveMarginPct(price, defaultMarginPct));
+}
+
+/**
+ * Clone a tree with every tier's `rate` replaced by its selling rate.
+ * Display-only transform for the admin's Purchase ⇄ Selling toggle —
+ * never write these nodes back to the database.
+ */
+export function treeWithSellingRates(
+  tree: PricelistTreeNode[],
+  defaultMarginPct: number
+): PricelistTreeNode[] {
+  const mapNode = (node: PricelistTreeNode): PricelistTreeNode => ({
+    ...node,
+    prices: node.prices.map((p) => ({ ...p, rate: sellingRate(p, defaultMarginPct) })),
+    children: node.children.map(mapNode),
+  });
+  return tree.map(mapNode);
+}
+
 /**
  * Compact size chip, e.g. "8 × 4 · 18mm". Returns '' when no size is set.
  * Thickness is rendered in mm (the universal convention for ply/MDF here).

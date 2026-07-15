@@ -13,6 +13,8 @@ interface TierDraft {
   label: string;
   rate: string;
   unit: string;
+  /** Selling margin % for this tier; blank = use the global default. */
+  margin: string;
 }
 
 interface NodeFormSheetProps {
@@ -24,6 +26,8 @@ interface NodeFormSheetProps {
   parentId: string | null;
   node?: PricelistNodeWithRelations | null;
   suppliers: PricelistSupplier[];
+  /** Global default margin % — shown as the placeholder for blank margins. */
+  defaultMarginPct?: number;
 }
 
 const UNIT_SUGGESTIONS = ['per sheet', 'per sq.ft.', 'per piece', 'per kg', 'per box', 'per running ft'];
@@ -61,6 +65,7 @@ export function NodeFormSheet({
   parentId,
   node,
   suppliers,
+  defaultMarginPct = 0,
 }: NodeFormSheetProps) {
   const [supabase] = useState(() => createClient());
   const meta = META[level];
@@ -73,7 +78,7 @@ export function NodeFormSheet({
   const [unit, setUnit] = useState('');
   const [tags, setTags] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [tiers, setTiers] = useState<TierDraft[]>([{ label: '', rate: '', unit: '' }]);
+  const [tiers, setTiers] = useState<TierDraft[]>([{ label: '', rate: '', unit: '', margin: '' }]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,8 +98,9 @@ export function NodeFormSheet({
               label: p.label === 'Standard' ? '' : p.label,
               rate: p.rate.toString(),
               unit: p.unit ?? '',
+              margin: p.margin_pct?.toString() ?? '',
             }))
-          : [{ label: '', rate: '', unit: '' }]
+          : [{ label: '', rate: '', unit: '', margin: '' }]
       );
     } else {
       setName('');
@@ -103,7 +109,7 @@ export function NodeFormSheet({
       setUnit('');
       setTags('');
       setSupplierId('');
-      setTiers([{ label: '', rate: '', unit: '' }]);
+      setTiers([{ label: '', rate: '', unit: '', margin: '' }]);
     }
     setError(null);
   }, [isOpen, mode, node]);
@@ -111,7 +117,7 @@ export function NodeFormSheet({
   const updateTier = (i: number, patch: Partial<TierDraft>) =>
     setTiers((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
   const addTier = () =>
-    setTiers((prev) => [...prev, { label: '', rate: '', unit: unit || '' }]);
+    setTiers((prev) => [...prev, { label: '', rate: '', unit: unit || '', margin: '' }]);
   const removeTier = (i: number) =>
     setTiers((prev) => prev.filter((_, idx) => idx !== i));
 
@@ -160,6 +166,7 @@ export function NodeFormSheet({
             label: t.label.trim() || 'Standard',
             rate: numOrNull(t.rate),
             unit: t.unit.trim() || null,
+            margin_pct: numOrNull(t.margin),
             sort_order: idx,
           }))
           .filter((r) => r.rate != null);
@@ -271,55 +278,84 @@ export function NodeFormSheet({
             <div>
               <p className="text-sm font-medium text-foreground mb-0.5">Prices</p>
               <p className="text-xs text-muted-foreground mb-2">
-                One price is enough for most varieties. Add more rows if this variety comes in
-                multiple sizes (e.g. 6mm, 18mm) with different rates.
+                Rate is what YOU pay (purchase). Margin % sets the selling price —
+                leave it blank to use the default margin ({defaultMarginPct}%).
               </p>
               <div className="flex flex-col gap-2">
-                {tiers.map((t, i) => (
-                  <div key={i} className="flex items-end gap-2">
-                    <div className="w-24 shrink-0">
-                      <Input
-                        label={i === 0 ? 'Size (opt.)' : ''}
-                        aria-label="Size or label"
-                        placeholder="18mm"
-                        value={t.label}
-                        onChange={(e) => updateTier(i, { label: e.target.value })}
-                      />
+                {tiers.map((t, i) => {
+                  const rateNum = numOrNull(t.rate);
+                  const marginNum = numOrNull(t.margin) ?? defaultMarginPct;
+                  const selling =
+                    rateNum != null ? Math.round(rateNum * (1 + marginNum / 100)) : null;
+                  return (
+                    <div key={i} className="rounded-xl border border-border p-2.5 flex flex-col gap-2">
+                      <div className="flex items-end gap-2">
+                        <div className="w-24 shrink-0">
+                          <Input
+                            label="Size (opt.)"
+                            aria-label="Size or label"
+                            placeholder="18mm"
+                            value={t.label}
+                            onChange={(e) => updateTier(i, { label: e.target.value })}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Input
+                            label="Rate (₹)"
+                            aria-label="Purchase rate"
+                            type="number"
+                            inputMode="decimal"
+                            placeholder="2400"
+                            value={t.rate}
+                            onChange={(e) => updateTier(i, { rate: e.target.value })}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeTier(i)}
+                          disabled={tiers.length === 1}
+                          aria-label="Remove price row"
+                          className="w-11 h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-30 shrink-0"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="flex items-end gap-2">
+                        <div className="w-24 shrink-0">
+                          <Input
+                            label="Margin %"
+                            aria-label="Selling margin percent"
+                            type="number"
+                            inputMode="decimal"
+                            placeholder={String(defaultMarginPct)}
+                            value={t.margin}
+                            onChange={(e) => updateTier(i, { margin: e.target.value })}
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <Input
+                            label="Unit"
+                            aria-label="Unit"
+                            list="pricelist-units"
+                            placeholder="per sheet"
+                            value={t.unit}
+                            onChange={(e) => updateTier(i, { unit: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      {selling != null && (
+                        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                          Selling: ₹{selling.toLocaleString('en-IN')}
+                          <span className="text-muted-foreground font-medium">
+                            {' '}(+{marginNum}%{t.margin.trim() === '' ? ' default' : ''})
+                          </span>
+                        </p>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <Input
-                        label={i === 0 ? 'Rate (₹)' : ''}
-                        aria-label="Rate"
-                        type="number"
-                        inputMode="decimal"
-                        placeholder="2400"
-                        value={t.rate}
-                        onChange={(e) => updateTier(i, { rate: e.target.value })}
-                      />
-                    </div>
-                    <div className="w-28 shrink-0">
-                      <Input
-                        label={i === 0 ? 'Unit' : ''}
-                        aria-label="Unit"
-                        list="pricelist-units"
-                        placeholder="per sheet"
-                        value={t.unit}
-                        onChange={(e) => updateTier(i, { unit: e.target.value })}
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeTier(i)}
-                      disabled={tiers.length === 1}
-                      aria-label="Remove price row"
-                      className="w-11 h-11 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-30 shrink-0"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <button
                 type="button"

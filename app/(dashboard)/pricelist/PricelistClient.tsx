@@ -22,6 +22,7 @@ import {
   productMatches,
   lowestPrice,
   formatPrice,
+  treeWithSellingRates,
 } from '@/lib/pricelist-utils';
 import type { AuthUser } from '@/lib/auth';
 import type {
@@ -30,6 +31,7 @@ import type {
 } from '@/types/database';
 
 type View = 'grid' | 'cards' | 'tree' | 'search' | 'manage';
+type PriceMode = 'purchase' | 'selling';
 
 interface Selected {
   node: PricelistNodeWithRelations;
@@ -45,10 +47,11 @@ interface FormState {
 
 export function PricelistClient({ user }: { user: AuthUser }) {
   const isAdmin = user.profile.role === 'admin';
-  const { tree, suppliers, loading, error } = usePricelist();
+  const { tree, suppliers, defaultMarginPct, loading, error } = usePricelist(isAdmin);
   const [supabase] = useState(() => createClient());
 
   const [view, setView] = useState<View>('grid');
+  const [priceMode, setPriceMode] = useState<PriceMode>('purchase');
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -64,16 +67,43 @@ export function PricelistClient({ user }: { user: AuthUser }) {
     const v = localStorage.getItem('pricelistView') as View | null;
     const valid: View[] = ['grid', 'cards', 'tree', 'search', 'manage'];
     if (v && valid.includes(v)) setView(v);
+    const m = localStorage.getItem('pricelistPriceMode') as PriceMode | null;
+    if (m === 'purchase' || m === 'selling') setPriceMode(m);
   }, []);
   const changeView = (v: View) => {
     setView(v);
     localStorage.setItem('pricelistView', v);
   };
+  const changePriceMode = (m: PriceMode) => {
+    setPriceMode(m);
+    localStorage.setItem('pricelistPriceMode', m);
+  };
   const effectiveView: View = (view === 'manage' && !isAdmin) ? 'grid' : view;
 
-  const flat = useMemo(() => flattenProducts(tree), [tree]);
+  // Staff/viewer data is already selling-priced at the source; the toggle is
+  // an admin-only, display-only transform of the raw (purchase) tree.
+  const displayTree = useMemo(
+    () => (isAdmin && priceMode === 'selling' ? treeWithSellingRates(tree, defaultMarginPct) : tree),
+    [isAdmin, priceMode, tree, defaultMarginPct]
+  );
+
+  // Raw nodes by id — the edit form must always receive purchase rates,
+  // never the selling-mapped clones.
+  const rawNodeById = useMemo(() => {
+    const map = new Map<string, PricelistNodeWithRelations>();
+    const walk = (nodes: PricelistTreeNode[]) => {
+      for (const n of nodes) {
+        map.set(n.id, n);
+        if (n.children.length) walk(n.children);
+      }
+    };
+    walk(tree);
+    return map;
+  }, [tree]);
+
+  const flat = useMemo(() => flattenProducts(displayTree), [displayTree]);
   const pathById = useMemo(() => new Map(flat.map((f) => [f.node.id, f.path])), [flat]);
-  const categories = useMemo(() => getCategoryNodes(tree), [tree]);
+  const categories = useMemo(() => getCategoryNodes(displayTree), [displayTree]);
 
   const searchQuery = search.trim();
   const searchResults = useMemo(
@@ -116,11 +146,13 @@ export function PricelistClient({ user }: { user: AuthUser }) {
     setForm({ mode: 'create', parentId: parent.id, node: null, level });
   };
   const editNode = (node: PricelistNodeWithRelations) => {
+    // Selling mode hands out mapped clones — always edit the raw purchase node.
+    const raw = rawNodeById.get(node.id) ?? node;
     const level: PricelistLevel =
-      node.kind === 'product' ? 'variety'
-      : node.parent_id === null ? 'category'
+      raw.kind === 'product' ? 'variety'
+      : raw.parent_id === null ? 'category'
       : 'brand';
-    setForm({ mode: 'edit', parentId: node.parent_id, node, level });
+    setForm({ mode: 'edit', parentId: raw.parent_id, node: raw, level });
   };
   const editFromDetail = (node: PricelistNodeWithRelations) => {
     setSelected(null);
@@ -199,6 +231,45 @@ export function PricelistClient({ user }: { user: AuthUser }) {
         </div>
       </div>
 
+      {/* Purchase ⇄ Selling toggle + default margin (admin only) */}
+      {isAdmin && (
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-xl" role="group" aria-label="Price mode">
+            <button
+              type="button"
+              onClick={() => changePriceMode('purchase')}
+              className={cn(
+                'h-9 px-4 rounded-lg text-sm font-semibold transition-colors min-tap',
+                priceMode === 'purchase' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Purchase
+            </button>
+            <button
+              type="button"
+              onClick={() => changePriceMode('selling')}
+              className={cn(
+                'h-9 px-4 rounded-lg text-sm font-semibold transition-colors min-tap',
+                priceMode === 'selling'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Selling
+            </button>
+          </div>
+          <DefaultMarginEditor
+            value={defaultMarginPct}
+            onSave={async (pct) => {
+              const { error: err } = await (supabase.from('pricelist_settings') as any)
+                .update({ default_margin_pct: pct })
+                .eq('id', 1);
+              if (err) throw err;
+            }}
+          />
+        </div>
+      )}
+
       {/* View switcher */}
       <div className="grid grid-flow-col auto-cols-fr gap-1 p-1 bg-muted rounded-xl mb-4">
         {tabs.map((t) => (
@@ -243,7 +314,7 @@ export function PricelistClient({ user }: { user: AuthUser }) {
       ) : effectiveView === 'manage' ? (
         <div className="rounded-2xl border border-border bg-card p-1.5">
           <PricelistTree
-            nodes={tree}
+            nodes={displayTree}
             expanded={expanded}
             onToggle={toggle}
             onSelectProduct={selectProduct}
@@ -295,6 +366,7 @@ export function PricelistClient({ user }: { user: AuthUser }) {
           level={form.level}
           node={form.node}
           suppliers={suppliers}
+          defaultMarginPct={defaultMarginPct}
         />
       )}
 
@@ -314,6 +386,67 @@ export function PricelistClient({ user }: { user: AuthUser }) {
         onCancel={() => setToDelete(null)}
       />
     </div>
+  );
+}
+
+/**
+ * Compact inline editor for the global default selling margin.
+ * Blank per-tier margins fall back to this value. Saves on blur / Enter.
+ */
+function DefaultMarginEditor({
+  value,
+  onSave,
+}: {
+  value: number;
+  onSave: (pct: number) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  const [saving, setSaving] = useState(false);
+
+  // Follow external updates (initial load, realtime) unless mid-save.
+  useEffect(() => {
+    if (!saving) setDraft(String(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const commit = async () => {
+    const pct = Number(draft);
+    if (!Number.isFinite(pct) || pct < 0) {
+      setDraft(String(value));
+      return;
+    }
+    if (pct === value) return;
+    setSaving(true);
+    try {
+      await onSave(pct);
+      toast.success(`Default margin set to ${pct}%.`);
+    } catch {
+      toast.error("Couldn't save the default margin.");
+      setDraft(String(value));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <label className="flex items-center gap-2 h-11 px-3 rounded-xl border border-border bg-card">
+      <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Default margin</span>
+      <input
+        type="number"
+        inputMode="decimal"
+        min={0}
+        value={draft}
+        disabled={saving}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+        aria-label="Default selling margin percent"
+        className="w-14 h-8 px-1.5 rounded-lg border border-border bg-background text-foreground text-sm font-bold text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+      />
+      <span className="text-sm font-bold text-foreground">%</span>
+    </label>
   );
 }
 

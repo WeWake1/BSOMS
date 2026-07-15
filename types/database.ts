@@ -76,10 +76,22 @@ export interface PricelistPrice {
   id: string;
   node_id: string;
   label: string;
+  /** Admin sees the purchase rate here; staff/viewer rows (from the
+   *  pricelist_prices_selling view) carry the computed selling rate. */
   rate: number;
   unit: string | null;
   sort_order: number;
   created_at: string;
+  /** Selling margin % for this tier; null = use the global default.
+   *  Always null on staff/viewer rows — the view never exposes it. */
+  margin_pct: number | null;
+}
+
+/** Single-row table holding the global default selling margin (admin-only). */
+export interface PricelistSettings {
+  id: number;
+  default_margin_pct: number;
+  updated_at: string;
 }
 
 export interface PricelistNode {
@@ -134,11 +146,17 @@ export type Database = {
       };
       pricelist_prices: {
         Row: PricelistPrice;
-        Insert: Omit<PricelistPrice, 'id' | 'created_at'> & {
+        Insert: Omit<PricelistPrice, 'id' | 'created_at' | 'margin_pct'> & {
           id?: string;
           created_at?: string;
+          margin_pct?: number | null;
         };
         Update: Partial<Omit<PricelistPrice, 'id' | 'created_at'>>;
+      };
+      pricelist_settings: {
+        Row: PricelistSettings;
+        Insert: Partial<PricelistSettings>;
+        Update: Partial<Omit<PricelistSettings, 'id'>>;
       };
       orders: {
         Row: Order;
