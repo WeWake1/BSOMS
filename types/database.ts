@@ -105,6 +105,8 @@ export interface PricelistNode {
   unit: string | null;
   tags: string[];
   supplier_id: string | null;
+  /** Optional external link (e.g. Google Drive catalogue / designs). */
+  catalogue_url: string | null;
   sort_order: number;
   created_at: string;
   updated_at: string;

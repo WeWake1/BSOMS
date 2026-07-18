@@ -38,6 +38,12 @@ export function ProductDetailSheet({
   onEdit,
 }: ProductDetailSheetProps) {
   const size = node ? formatSize(node) : '';
+  const catalogueUrl = node?.catalogue_url?.trim() || '';
+  const catalogueHref = catalogueUrl
+    ? /^https?:\/\//i.test(catalogueUrl)
+      ? catalogueUrl
+      : `https://${catalogueUrl}`
+    : '';
   const supplier = node?.supplier ?? null;
   const phoneDigits = supplier?.phone ? sanitizeMobileInput(supplier.phone) : '';
   const waUrl = buildWhatsAppUrl(phoneDigits);
@@ -103,6 +109,25 @@ export function ProductDetailSheet({
               </p>
             )}
           </div>
+
+          {/* Catalogue / designs link */}
+          {catalogueHref && (
+            <a
+              href={catalogueHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 mb-4 hover:bg-muted/50 transition-colors min-tap"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-foreground">Catalogue / designs</span>
+                <span className="block text-xs text-muted-foreground truncate">{catalogueUrl}</span>
+              </span>
+              <svg className="w-4 h-4 shrink-0 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </a>
+          )}
 
           {/* Sourcing / supplier */}
           {supplier && (

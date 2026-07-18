@@ -373,6 +373,7 @@ export function PricelistClient({ user }: { user: AuthUser }) {
           node={form.node}
           suppliers={suppliers}
           defaultMarginPct={defaultMarginPct}
+          reload={reload}
         />
       )}
 

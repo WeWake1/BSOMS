@@ -28,6 +28,8 @@ interface NodeFormSheetProps {
   suppliers: PricelistSupplier[];
   /** Global default margin % — shown as the placeholder for blank margins. */
   defaultMarginPct?: number;
+  /** Refresh the pricelist (suppliers included) after an inline add. */
+  reload?: () => void | Promise<void>;
 }
 
 const UNIT_SUGGESTIONS = ['per sheet', 'per sq.ft.', 'per piece', 'per kg', 'per box', 'per running ft'];
@@ -66,6 +68,7 @@ export function NodeFormSheet({
   node,
   suppliers,
   defaultMarginPct = 0,
+  reload,
 }: NodeFormSheetProps) {
   const [supabase] = useState(() => createClient());
   const meta = META[level];
@@ -78,10 +81,17 @@ export function NodeFormSheet({
   const [unit, setUnit] = useState('');
   const [tags, setTags] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [catalogueUrl, setCatalogueUrl] = useState('');
   const [tiers, setTiers] = useState<TierDraft[]>([{ label: '', rate: '', unit: '', margin: '' }]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Inline "add a new supplier" mini-form, opened from the Sourced-from row.
+  const [addingSupplier, setAddingSupplier] = useState(false);
+  const [newSupplier, setNewSupplier] = useState({ name: '', location: '', phone: '' });
+  const [savingSupplier, setSavingSupplier] = useState(false);
+  const [supplierError, setSupplierError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -92,6 +102,7 @@ export function NodeFormSheet({
       setUnit(node.unit ?? '');
       setTags((node.tags ?? []).join(', '));
       setSupplierId(node.supplier_id ?? '');
+      setCatalogueUrl(node.catalogue_url ?? '');
       setTiers(
         node.prices.length
           ? node.prices.map((p) => ({
@@ -109,9 +120,13 @@ export function NodeFormSheet({
       setUnit('');
       setTags('');
       setSupplierId('');
+      setCatalogueUrl('');
       setTiers([{ label: '', rate: '', unit: '', margin: '' }]);
     }
     setError(null);
+    setAddingSupplier(false);
+    setNewSupplier({ name: '', location: '', phone: '' });
+    setSupplierError(null);
   }, [isOpen, mode, node]);
 
   const updateTier = (i: number, patch: Partial<TierDraft>) =>
@@ -120,6 +135,35 @@ export function NodeFormSheet({
     setTiers((prev) => [...prev, { label: '', rate: '', unit: unit || '', margin: '' }]);
   const removeTier = (i: number) =>
     setTiers((prev) => prev.filter((_, idx) => idx !== i));
+
+  const saveNewSupplier = async () => {
+    if (!newSupplier.name.trim()) {
+      setSupplierError('Supplier name is required.');
+      return;
+    }
+    setSavingSupplier(true);
+    setSupplierError(null);
+    try {
+      const { data, error: err } = await (supabase.from('pricelist_suppliers') as any)
+        .insert({
+          name: newSupplier.name.trim(),
+          location: newSupplier.location.trim() || null,
+          phone: newSupplier.phone.trim() || null,
+        })
+        .select('id')
+        .single();
+      if (err) throw err;
+      setSupplierId(data.id); // select the just-created supplier
+      setAddingSupplier(false);
+      setNewSupplier({ name: '', location: '', phone: '' });
+      await reload?.(); // pull the new supplier into the dropdown options
+    } catch (e) {
+      const msg = (e as { message?: string })?.message;
+      setSupplierError(msg ? `Couldn't add supplier: ${msg}` : "Couldn't add supplier. Please try again.");
+    } finally {
+      setSavingSupplier(false);
+    }
+  };
 
   const save = async () => {
     if (!name.trim()) {
@@ -139,6 +183,7 @@ export function NodeFormSheet({
       unit: isVariety ? unit.trim() || null : null,
       tags: isVariety ? tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       supplier_id: isVariety ? supplierId || null : null,
+      catalogue_url: isVariety ? catalogueUrl.trim() || null : null,
     };
 
     try {
@@ -255,24 +300,110 @@ export function NodeFormSheet({
 
             {/* Supplier */}
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="supplier-select" className="text-sm font-medium text-foreground">
-                Sourced from{' '}
-                <span className="text-muted-foreground font-normal">(optional)</span>
-              </label>
-              <select
-                id="supplier-select"
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">— None —</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center justify-between">
+                <label htmlFor="supplier-select" className="text-sm font-medium text-foreground">
+                  Sourced from{' '}
+                  <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                {!addingSupplier && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSupplierError(null);
+                      setAddingSupplier(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline min-tap"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                    New supplier
+                  </button>
+                )}
+              </div>
+
+              {addingSupplier ? (
+                <div className="rounded-xl border border-border bg-muted/40 p-3 flex flex-col gap-2.5">
+                  {supplierError && (
+                    <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs p-2 rounded-lg border border-red-100 dark:border-red-900/50">
+                      {supplierError}
+                    </div>
+                  )}
+                  <Input
+                    label="Supplier name"
+                    autoFocus
+                    placeholder="e.g. Shree Timber Mart"
+                    value={newSupplier.name}
+                    onChange={(e) => setNewSupplier({ ...newSupplier, name: e.target.value })}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Location (optional)"
+                      placeholder="City / area"
+                      value={newSupplier.location}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, location: e.target.value })}
+                    />
+                    <Input
+                      label="Phone (optional)"
+                      type="tel"
+                      inputMode="tel"
+                      placeholder="Optional"
+                      value={newSupplier.phone}
+                      onChange={(e) => setNewSupplier({ ...newSupplier, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={saveNewSupplier}
+                      loading={savingSupplier}
+                      loadingText="Adding…"
+                    >
+                      Add supplier
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAddingSupplier(false);
+                        setSupplierError(null);
+                        setNewSupplier({ name: '', location: '', phone: '' });
+                      }}
+                      disabled={savingSupplier}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <select
+                  id="supplier-select"
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
+                  className="w-full h-11 px-3 rounded-xl border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">— None —</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
+
+            {/* Catalogue / designs link */}
+            <Input
+              label="Catalogue / designs link (optional)"
+              type="url"
+              inputMode="url"
+              placeholder="https://drive.google.com/…"
+              value={catalogueUrl}
+              onChange={(e) => setCatalogueUrl(e.target.value)}
+              hint="Paste a Google Drive (or any) link to the catalogue or designs — staff can open it from the product page."
+            />
 
             {/* Prices */}
             <div>
