@@ -192,8 +192,8 @@ export function PricelistClient({ user }: { user: AuthUser }) {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-28 lg:pb-8">
-      {/* Top bar */}
-      <div className="flex items-center justify-between gap-3 mb-4">
+      {/* Top bar — actions drop to their own full-width row on phones */}
+      <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3 min-w-0">
           <Link
             href="/dashboard"
@@ -210,20 +210,28 @@ export function PricelistClient({ user }: { user: AuthUser }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 w-full sm:w-auto sm:shrink-0">
           {isAdmin && (
             <button
               type="button"
               onClick={() => setSuppliersOpen(true)}
-              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted transition-colors min-tap"
+              aria-label="Suppliers"
+              className="inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted transition-colors min-tap shrink-0"
             >
               <svg className="w-4 h-4 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9h18M3 9l2-5h14l2 5M3 9v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9" /></svg>
               <span className="hidden sm:inline">Suppliers</span>
             </button>
           )}
           <Link
+            href="/pricelist/share"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-xl border border-border bg-card text-sm font-semibold text-foreground hover:bg-muted transition-colors min-tap"
+          >
+            <svg className="w-4 h-4 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
+            Share list
+          </Link>
+          <Link
             href="/pricelist/quote"
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors min-tap"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors min-tap"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="13" y2="17" /></svg>
             Quote

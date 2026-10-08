@@ -69,6 +69,13 @@ export function ProductDetailSheet({
 
           {node.tags?.length ? <TagBadges tags={node.tags} className="mb-3" /> : null}
 
+          {/* Internal description — app-only, never on quotes / shared lists. */}
+          {node.description?.trim() && (
+            <p className="text-sm text-foreground whitespace-pre-line break-words mb-4">
+              {node.description.trim()}
+            </p>
+          )}
+
           {/* Rate tiers */}
           <div className="rounded-2xl border border-border bg-card overflow-hidden mb-4">
             <div className="px-4 py-2.5 border-b border-border bg-muted/40">

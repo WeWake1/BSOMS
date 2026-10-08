@@ -1,16 +1,21 @@
 import jsPDF, { GState } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { formatSize } from './pricelist-utils';
+import { areaSqFt, formatSize, formatSizeFt, isPerSqFt, type SizeFt } from './pricelist-utils';
 import type { PricelistNodeWithRelations, PricelistPrice } from '@/types/database';
 
 // Customer-facing business name on the quotation. Change here if it differs.
 export const BUSINESS_NAME = 'Bhakti Sales';
 
 export interface QuoteLine {
+  /** Unique per line — the same product can appear on several lines
+   *  (e.g. one with its SF tier, another with TEXTURE). */
+  key: string;
   node: PricelistNodeWithRelations;
   path: string[];
   price: PricelistPrice | null; // chosen rate tier (null = on request)
   qty: number;
+  /** Per-sq.ft. tiers only: the chosen size in feet (null = not picked yet). */
+  size: SizeFt | null;
 }
 
 export interface QuoteMeta {
@@ -23,18 +28,46 @@ export interface QuoteMeta {
 
 const inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 });
 /** PDF-safe rupee formatting — the ₹ glyph isn't in jsPDF's core fonts. */
-const rs = (n: number) => `Rs ${inr.format(n)}`;
+export const rs = (n: number) => `Rs ${inr.format(n)}`;
+
+/** True when the line's chosen tier is priced per square foot. */
+export function isSqFtLine(line: Pick<QuoteLine, 'price'>): boolean {
+  return !!line.price && isPerSqFt(line.price.unit);
+}
+
+/**
+ * Price of ONE piece on this line: the tier rate, or rate × area for
+ * per-sq.ft. tiers. null = on request, or a sq.ft. line with no size yet.
+ */
+export function linePieceRate(line: QuoteLine): number | null {
+  if (!line.price) return null;
+  if (!isSqFtLine(line)) return line.price.rate;
+  if (!line.size) return null;
+  return Math.round(line.price.rate * areaSqFt(line.size) * 100) / 100;
+}
 
 export function lineAmount(line: QuoteLine): number | null {
-  if (!line.price) return null;
-  return line.price.rate * line.qty;
+  const piece = linePieceRate(line);
+  if (piece == null) return null;
+  return Math.round(piece * line.qty * 100) / 100;
+}
+
+/** True when a sq.ft. line still needs its size picked. */
+export function lineNeedsSize(line: QuoteLine): boolean {
+  return isSqFtLine(line) && !line.size;
+}
+
+/** "BELL LAMINATE (TEXTURE)" — the tier label disambiguates repeated products. */
+export function lineTitle(line: Pick<QuoteLine, 'node' | 'price'>): string {
+  const label = line.price?.label;
+  return label && label !== 'Standard' ? `${line.node.name} (${label})` : line.node.name;
 }
 
 export function quoteTotal(lines: QuoteLine[]): number {
   return lines.reduce((sum, l) => sum + (lineAmount(l) ?? 0), 0);
 }
 
-function prettyDate(iso: string): string {
+export function prettyDate(iso: string): string {
   if (!iso) return '';
   return new Date(iso).toLocaleDateString('en-IN', {
     day: '2-digit',
@@ -43,7 +76,7 @@ function prettyDate(iso: string): string {
   });
 }
 
-async function loadWatermark(url: string): Promise<{ data: string; aspectRatio: number } | null> {
+export async function loadWatermark(url: string): Promise<{ data: string; aspectRatio: number } | null> {
   try {
     const response = await fetch(url);
     const blob = await response.blob();
@@ -112,14 +145,25 @@ export async function generateQuotePDF(
   // ── Items table ─────────────────────────────────────────────────
   const body = lines.map((l, i) => {
     const amt = lineAmount(l);
-    const productCell = l.path.length
-      ? `${l.node.name}\n${l.path.join(' / ')}`
-      : l.node.name;
+    const piece = linePieceRate(l);
+    const title = lineTitle(l);
+    const productCell = l.path.length ? `${title}\n${l.path.join(' / ')}` : title;
+    // Per-sq.ft. lines: show the chosen size + area, and the per-piece price
+    // with the sq.ft. rate underneath so the maths is visible to the client.
+    const sqftSize = isSqFtLine(l) ? l.size : null;
+    const sizeCell = sqftSize
+      ? `${formatSizeFt(sqftSize)} ft\n${inr.format(areaSqFt(sqftSize))} sq.ft`
+      : formatSize(l.node) || '—';
+    const rateCell = !l.price
+      ? 'On request'
+      : sqftSize && piece != null
+        ? `${rs(piece)}\n(${rs(l.price.rate)}/sq.ft)`
+        : rs(l.price.rate);
     return [
       String(i + 1),
       productCell,
-      formatSize(l.node) || '—',
-      l.price ? rs(l.price.rate) : 'On request',
+      sizeCell,
+      rateCell,
       String(l.qty),
       amt != null ? rs(amt) : '—',
     ];

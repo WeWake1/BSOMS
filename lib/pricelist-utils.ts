@@ -73,6 +73,7 @@ export function productMatches(p: FlatProduct, query: string): boolean {
     p.node.name,
     ...p.path,
     ...(p.node.tags ?? []),
+    p.node.description ?? '',
     p.node.supplier?.name ?? '',
     ...p.node.prices.map((pr) => pr.label),
   ]
@@ -93,6 +94,50 @@ export function formatRupees(amount: number | null | undefined): string {
 export function formatPrice(price: PricelistPrice): string {
   const base = formatRupees(price.rate);
   return price.unit ? `${base} / ${price.unit}` : base;
+}
+
+// ─── Per-square-foot pricing ───────────────────────────────────────────
+
+/**
+ * True when a unit label means "priced per square foot". Units are free text
+ * ("per sq.ft.", "sq ft", "per sqft", "per square feet"), so match loosely.
+ */
+export function isPerSqFt(unit: string | null | undefined): boolean {
+  if (!unit) return false;
+  return /\bsq\.?\s*f(ee|oo)?t\b|\bsquare\s*f(ee|oo)?t\b/i.test(unit);
+}
+
+/** A sheet / door size in feet. */
+export interface SizeFt {
+  length: number;
+  width: number;
+}
+
+/** Common sheet & door sizes offered as one-tap choices in quotes. */
+export const SQFT_SIZE_PRESETS: SizeFt[] = [
+  { length: 8, width: 4 },
+  { length: 7, width: 4 },
+  { length: 7, width: 3 },
+  { length: 6, width: 3 },
+];
+
+/** Area in sq.ft., rounded to 2 decimals to keep float noise out of totals. */
+export function areaSqFt(size: SizeFt): number {
+  return Math.round(size.length * size.width * 100) / 100;
+}
+
+/** The variety's saved sheet size, if both sides are set. */
+export function nodeSizeFt(
+  node: Pick<PricelistNode, 'length' | 'width'>
+): SizeFt | null {
+  return node.length != null && node.width != null
+    ? { length: node.length, width: node.width }
+    : null;
+}
+
+/** "8 × 4" */
+export function formatSizeFt(size: SizeFt): string {
+  return `${size.length} × ${size.width}`;
 }
 
 /** The lowest rate among a product's tiers (for compact list display). */

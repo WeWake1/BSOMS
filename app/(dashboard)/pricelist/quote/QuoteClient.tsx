@@ -3,33 +3,45 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { toPng } from 'html-to-image';
 import { usePricelist } from '@/hooks/usePricelist';
-import { PricelistTree } from '@/components/pricelist/pricelist-tree';
+import { ProductPicker } from '@/components/pricelist/product-picker';
 import { QuoteImageCard } from '@/components/pricelist/quote-image-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import {
   flattenProducts,
-  productMatches,
   lowestPrice,
   formatRupees,
   formatPrice,
   applyMargin,
   sellingRate,
   treeWithSellingRates,
+  isPerSqFt,
+  nodeSizeFt,
+  areaSqFt,
+  formatSizeFt,
+  SQFT_SIZE_PRESETS,
+  type SizeFt,
 } from '@/lib/pricelist-utils';
 import {
   generateQuotePDF,
+  isSqFtLine,
   lineAmount,
+  lineNeedsSize,
+  linePieceRate,
   quoteTotal,
   type QuoteLine,
   type QuoteMeta,
 } from '@/lib/quote-export';
+import { shareOrDownloadPng, fileSlug } from '@/lib/share-image';
 import type { AuthUser } from '@/lib/auth';
-import type { PricelistNodeWithRelations } from '@/types/database';
+import type { PricelistNodeWithRelations, PricelistPrice } from '@/types/database';
 
 interface Selection {
+  /** Unique per line — the same product can be quoted on several lines
+   *  (e.g. BELL LAMINATE at SF and again at TEXTURE). */
+  key: string;
   node: PricelistNodeWithRelations;
   path: string[];
   priceId: string | null;
@@ -37,18 +49,62 @@ interface Selection {
   /** Quote-only margin % override (admin). Blank = tier's own default.
    *  Never written back to the database. */
   marginPct: string;
+  /** Per-sq.ft. tiers: chosen size in feet. Strings so a custom size can be
+   *  mid-typing; blank = not picked yet. */
+  sizeL: string;
+  sizeW: string;
+  /** Show the free L × W inputs instead of the preset chips. */
+  customSize: boolean;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+// Local calendar date (toISOString alone is UTC — before 5:30 AM IST it
+// would default the date to yesterday).
+const today = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+
+// Line keys only need to be unique within this page session (no
+// crypto.randomUUID — older phones in use don't have it).
+let lineSeq = 0;
+const newLineKey = () => `line-${++lineSeq}`;
+
+function newSelection(
+  node: PricelistNodeWithRelations,
+  path: string[],
+  price: PricelistPrice | null,
+  defaultMarginPct: number
+): Selection {
+  // Per-sq.ft. lines start on the variety's saved sheet size, if it has one.
+  const size = nodeSizeFt(node);
+  return {
+    key: newLineKey(),
+    node,
+    path,
+    priceId: price?.id ?? null,
+    qty: 1,
+    marginPct: String(price?.margin_pct ?? defaultMarginPct),
+    sizeL: size ? String(size.length) : '',
+    sizeW: size ? String(size.width) : '',
+    customSize: false,
+  };
+}
+
+/** The selection's size if both sides are valid positive numbers. */
+function parseSize(s: Pick<Selection, 'sizeL' | 'sizeW'>): SizeFt | null {
+  const length = Number(s.sizeL);
+  const width = Number(s.sizeW);
+  if (!s.sizeL.trim() || !s.sizeW.trim()) return null;
+  if (!(length > 0) || !(width > 0)) return null;
+  return { length, width };
+}
 
 export function QuoteClient({ user }: { user: AuthUser }) {
   const isAdmin = user.profile.role === 'admin';
   const { tree, defaultMarginPct, loading } = usePricelist(isAdmin);
 
   const [view, setView] = useState<'select' | 'review'>('select');
-  const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [selections, setSelections] = useState<Map<string, Selection>>(new Map());
+  const [selections, setSelections] = useState<Selection[]>([]);
 
   const [meta, setMeta] = useState<QuoteMeta>({
     clientName: '',
@@ -80,50 +136,48 @@ export function QuoteClient({ user }: { user: AuthUser }) {
     () => treeWithSellingRates(tree, defaultMarginPct),
     [tree, defaultMarginPct]
   );
-  const flatDisplay = useMemo(() => flattenProducts(displayTree), [displayTree]);
-  const query = search.trim();
-  const results = useMemo(
-    () => (query ? flatDisplay.filter((p) => productMatches(p, query)) : []),
-    [flatDisplay, query]
+
+  const selectedIds = useMemo(
+    () => new Set(selections.map((s) => s.node.id)),
+    [selections]
   );
 
-  const selectedIds = useMemo(() => new Set(selections.keys()), [selections]);
-
+  // Picker checkbox: on = add one line, off = drop every line of that product.
   const toggleSelect = (node: PricelistNodeWithRelations) => {
     // The picker hands out selling-mapped clones — resolve back to the raw node.
     const raw = rawById.get(node.id) ?? node;
-    setSelections((prev) => {
-      const next = new Map(prev);
-      if (next.has(raw.id)) {
-        next.delete(raw.id);
-      } else {
-        const price = lowestPrice(raw.prices);
-        next.set(raw.id, {
-          node: raw,
-          path: pathById.get(raw.id) ?? [],
-          priceId: price?.id ?? null,
-          qty: 1,
-          marginPct: String(price?.margin_pct ?? defaultMarginPct),
-        });
-      }
-      return next;
-    });
+    setSelections((prev) =>
+      prev.some((s) => s.node.id === raw.id)
+        ? prev.filter((s) => s.node.id !== raw.id)
+        : [
+            ...prev,
+            newSelection(raw, pathById.get(raw.id) ?? [], lowestPrice(raw.prices), defaultMarginPct),
+          ]
+    );
   };
 
-  const updateSelection = (id: string, patch: Partial<Selection>) =>
-    setSelections((prev) => {
-      const next = new Map(prev);
-      const cur = next.get(id);
-      if (cur) next.set(id, { ...cur, ...patch });
-      return next;
-    });
+  const updateSelection = (key: string, patch: Partial<Selection>) =>
+    setSelections((prev) => prev.map((s) => (s.key === key ? { ...s, ...patch } : s)));
 
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  const removeLine = (key: string) =>
+    setSelections((prev) => prev.filter((s) => s.key !== key));
+
+  // Quote the same product again on its own line, right after its last line.
+  // Picks the next tier not on the quote yet; once every tier is used it
+  // repeats this line's tier (e.g. the same door in another size).
+  const addAnotherLine = (key: string) =>
+    setSelections((prev) => {
+      const src = prev.find((s) => s.key === key);
+      if (!src) return prev;
+      const siblings = prev.filter((s) => s.node.id === src.node.id);
+      const used = new Set(siblings.map((s) => s.priceId));
+      const price =
+        src.node.prices.find((p) => !used.has(p.id)) ??
+        src.node.prices.find((p) => p.id === src.priceId) ??
+        null;
+      const line = newSelection(src.node, src.path, price, defaultMarginPct);
+      const at = prev.lastIndexOf(siblings[siblings.length - 1]) + 1;
+      return [...prev.slice(0, at), line, ...prev.slice(at)];
     });
 
   // Effective margin % for a selection: its quote-only override if valid,
@@ -138,29 +192,37 @@ export function QuoteClient({ user }: { user: AuthUser }) {
     [defaultMarginPct]
   );
 
-  // Build quote lines (Map preserves insertion order). The line's price is a
-  // clone with the SELLING rate baked in, so totals, the PDF, and the image
-  // card all stay margin-unaware. (Staff: margin 0 → identity.)
+  // Build quote lines in selection order. The line's price is a clone with
+  // the SELLING rate baked in, so totals, the PDF, and the image card all
+  // stay margin-unaware. (Staff: margin 0 → identity.)
   const lines: QuoteLine[] = useMemo(
     () =>
-      Array.from(selections.values()).map((s) => {
+      selections.map((s) => {
         const raw = s.priceId ? s.node.prices.find((p) => p.id === s.priceId) ?? null : null;
         return {
+          key: s.key,
           node: s.node,
           path: s.path,
           price: raw ? { ...raw, rate: applyMargin(raw.rate, selectionMarginPct(s)) } : null,
           qty: s.qty,
+          size: raw && isPerSqFt(raw.unit) ? parseSize(s) : null,
         };
       }),
     [selections, selectionMarginPct]
   );
   const total = useMemo(() => quoteTotal(lines), [lines]);
+  const missingSizes = useMemo(() => lines.filter(lineNeedsSize).length, [lines]);
 
-  const canGenerate = lines.length > 0 && meta.clientName.trim().length > 0;
+  const blocker = !meta.clientName.trim()
+    ? 'Add a client name to generate the quote.'
+    : missingSizes > 0
+      ? `Pick a size for ${missingSizes} per sq.ft. item${missingSizes !== 1 ? 's' : ''}.`
+      : null;
+  const canGenerate = lines.length > 0 && !blocker;
 
   const handlePDF = async (action: 'download' | 'view' = 'download') => {
     if (!canGenerate) {
-      toast.error('Add a client name and at least one product.');
+      toast.error(blocker ?? 'Add at least one product.');
       return;
     }
     setExporting(true);
@@ -177,35 +239,18 @@ export function QuoteClient({ user }: { user: AuthUser }) {
 
   const handleImage = async () => {
     if (!canGenerate) {
-      toast.error('Add a client name and at least one product.');
+      toast.error(blocker ?? 'Add at least one product.');
       return;
     }
     if (!cardRef.current) return;
     setExporting(true);
     try {
-      await new Promise((r) => setTimeout(r, 80));
-      const dataUrl = await toPng(cardRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: '#ffffff',
-      });
-      const safe = (meta.clientName || 'client').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-      const filename = `quote-${safe}-${meta.date}.png`;
-
-      // Try native share (mobile) with the image as a file; fall back to download.
-      const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], filename, { type: 'image/png' });
-      const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-      if (nav.share && nav.canShare?.({ files: [file] })) {
-        await nav.share({ files: [file], title: 'Quotation' });
-        toast.success('Shared.');
-      } else {
-        const link = document.createElement('a');
-        link.href = dataUrl;
-        link.download = filename;
-        link.click();
-        toast.success('Image downloaded.');
-      }
+      const result = await shareOrDownloadPng(
+        cardRef.current,
+        `quote-${fileSlug(meta.clientName)}-${meta.date}.png`,
+        'Quotation'
+      );
+      toast.success(result === 'shared' ? 'Shared.' : 'Image downloaded.');
     } catch (e) {
       // AbortError = user cancelled the share sheet; stay quiet.
       if ((e as Error)?.name !== 'AbortError') {
@@ -245,116 +290,54 @@ export function QuoteClient({ user }: { user: AuthUser }) {
           </h1>
           <p className="text-sm font-medium text-muted-foreground mt-0.5">
             {view === 'select'
-              ? `${selections.size} selected`
+              ? `${selections.length} selected`
               : `${lines.length} item${lines.length !== 1 ? 's' : ''} · ${formatRupees(total)}`}
           </p>
         </div>
       </div>
 
-      {view === 'select' ? (
-        <>
-          {/* Search */}
-          <div className="sticky top-2 z-10 mb-4">
-            <div className="relative">
-              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search products to add…"
-                aria-label="Search products"
-                className="w-full h-12 pl-10 pr-10 rounded-2xl border border-border bg-card text-foreground text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-              {search && (
-                <button type="button" onClick={() => setSearch('')} aria-label="Clear search" className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted min-tap">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              )}
+      {/* Picker stays mounted so search + open folders survive a trip to Review. */}
+      <div className={view === 'select' ? undefined : 'hidden'}>
+        <ProductPicker
+          tree={displayTree}
+          loading={loading}
+          selectedIds={selectedIds}
+          onToggle={toggleSelect}
+        />
+
+        {/* Sticky review bar */}
+        {selections.length > 0 && view === 'select' && (
+          <div className="fixed bottom-0 inset-x-0 z-20 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3 bg-gradient-to-t from-background via-background to-transparent">
+            <div className="max-w-3xl mx-auto">
+              <button
+                type="button"
+                onClick={() => setView('review')}
+                className="w-full h-[52px] rounded-2xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/30 flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
+              >
+                Review {selections.length} item{selections.length !== 1 ? 's' : ''}
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+              </button>
             </div>
           </div>
+        )}
+      </div>
 
-          {loading ? (
-            <div className="rounded-2xl border border-border bg-card p-3 flex flex-col gap-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-11 rounded-xl bg-muted animate-pulse" style={{ width: `${85 - (i % 3) * 10}%` }} />
-              ))}
-            </div>
-          ) : query ? (
-            results.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-10">No products match “{query}”.</p>
-            ) : (
-              <ul className="flex flex-col gap-1.5">
-                {results.map(({ node, path }) => {
-                  const checked = selectedIds.has(node.id);
-                  const lo = lowestPrice(node.prices);
-                  return (
-                    <li key={node.id}>
-                      <button
-                        type="button"
-                        onClick={() => toggleSelect(node)}
-                        className="w-full flex items-center gap-3 p-3 rounded-2xl border border-border bg-card hover:border-foreground/15 transition-all text-left min-tap"
-                      >
-                        <span className={`w-6 h-6 rounded-md border-2 flex items-center justify-center shrink-0 ${checked ? 'bg-primary border-primary text-primary-foreground' : 'border-border'}`}>
-                          {checked && <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-foreground truncate">{node.name}</p>
-                          {path.length > 0 && <p className="text-xs text-muted-foreground truncate">{path.join(' / ')}</p>}
-                        </div>
-                        <span className="text-sm font-bold text-foreground tabular-nums shrink-0">
-                          {lo ? formatPrice(lo) : <span className="text-muted-foreground font-medium">—</span>}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )
-          ) : (
-            <div className="rounded-2xl border border-border bg-card p-1.5">
-              <PricelistTree
-                nodes={displayTree}
-                expanded={expanded}
-                onToggle={toggle}
-                onSelectProduct={(node) => toggleSelect(node)}
-                selectable
-                selectedIds={selectedIds}
-                onToggleSelect={toggleSelect}
-              />
-            </div>
-          )}
-
-          {/* Sticky review bar */}
-          {selections.size > 0 && (
-            <div className="fixed bottom-0 inset-x-0 z-20 px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3 bg-gradient-to-t from-background via-background to-transparent">
-              <div className="max-w-3xl mx-auto">
-                <button
-                  type="button"
-                  onClick={() => setView('review')}
-                  className="w-full h-[52px] rounded-2xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/30 flex items-center justify-center gap-2 active:scale-[0.99] transition-transform"
-                >
-                  Review {selections.size} item{selections.size !== 1 ? 's' : ''}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
+      {view === 'review' && (
         <ReviewView
-          lines={lines}
-          selections={selections}
+          rows={selections.map((sel, i) => ({ sel, line: lines[i] }))}
           total={total}
           meta={meta}
           setMeta={setMeta}
           updateSelection={updateSelection}
-          removeSelection={(id) => toggleSelect(selections.get(id)!.node)}
+          removeLine={removeLine}
+          addAnotherLine={addAnotherLine}
           onAddMore={() => setView('select')}
           onPDF={() => handlePDF('download')}
           onViewPDF={() => handlePDF('view')}
           onImage={handleImage}
           exporting={exporting}
           canGenerate={canGenerate}
+          blocker={blocker}
           isAdmin={isAdmin}
           defaultMarginPct={defaultMarginPct}
           selectionMarginPct={selectionMarginPct}
@@ -373,36 +356,38 @@ export function QuoteClient({ user }: { user: AuthUser }) {
 
 // ── Review view ─────────────────────────────────────────────────────
 function ReviewView({
-  lines,
-  selections,
+  rows,
   total,
   meta,
   setMeta,
   updateSelection,
-  removeSelection,
+  removeLine,
+  addAnotherLine,
   onAddMore,
   onPDF,
   onViewPDF,
   onImage,
   exporting,
   canGenerate,
+  blocker,
   isAdmin,
   defaultMarginPct,
   selectionMarginPct,
 }: {
-  lines: QuoteLine[];
-  selections: Map<string, Selection>;
+  rows: { sel: Selection; line: QuoteLine }[];
   total: number;
   meta: QuoteMeta;
   setMeta: React.Dispatch<React.SetStateAction<QuoteMeta>>;
-  updateSelection: (id: string, patch: Partial<Selection>) => void;
-  removeSelection: (id: string) => void;
+  updateSelection: (key: string, patch: Partial<Selection>) => void;
+  removeLine: (key: string) => void;
+  addAnotherLine: (key: string) => void;
   onAddMore: () => void;
   onPDF: () => void;
   onViewPDF: () => void;
   onImage: () => void;
   exporting: boolean;
   canGenerate: boolean;
+  blocker: string | null;
   isAdmin: boolean;
   defaultMarginPct: number;
   selectionMarginPct: (s: Selection) => number;
@@ -411,16 +396,17 @@ function ReviewView({
     <div className="flex flex-col gap-5">
       {/* Line items */}
       <div className="flex flex-col gap-2">
-        {lines.map((l) => {
-          const sel = selections.get(l.node.id)!;
+        {rows.map(({ sel, line: l }) => {
           const amt = lineAmount(l);
+          const sqft = isSqFtLine(l);
           // Raw tier (admin: purchase rate) behind this line's selling price.
           const rawPrice = sel.priceId
             ? sel.node.prices.find((p) => p.id === sel.priceId) ?? null
             : null;
           const linePct = selectionMarginPct(sel);
+          const canRepeat = l.node.prices.length > 1 || sqft;
           return (
-            <div key={l.node.id} className="rounded-2xl border border-border bg-card p-3">
+            <div key={l.key} className="rounded-2xl border border-border bg-card p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">{l.node.name}</p>
@@ -428,7 +414,7 @@ function ReviewView({
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeSelection(l.node.id)}
+                  onClick={() => removeLine(l.key)}
                   aria-label={`Remove ${l.node.name}`}
                   className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors shrink-0 min-tap"
                 >
@@ -439,16 +425,17 @@ function ReviewView({
               <div className="flex items-end gap-2 mt-3">
                 {/* Tier selector */}
                 <div className="flex-1 min-w-0">
-                  <label className="text-xs font-medium text-muted-foreground">Price</label>
+                  <label htmlFor={`price-${l.key}`} className="text-xs font-medium text-muted-foreground">Price</label>
                   {l.node.prices.length === 0 ? (
                     <div className="h-10 flex items-center text-sm text-muted-foreground">On request</div>
                   ) : (
                     <select
+                      id={`price-${l.key}`}
                       value={sel.priceId ?? ''}
                       onChange={(e) => {
                         const np = l.node.prices.find((pp) => pp.id === e.target.value) ?? null;
                         // Switching tiers resets the quote-only margin to that tier's default.
-                        updateSelection(l.node.id, {
+                        updateSelection(l.key, {
                           priceId: e.target.value || null,
                           marginPct: String(np?.margin_pct ?? defaultMarginPct),
                         });
@@ -466,49 +453,72 @@ function ReviewView({
                 </div>
                 {/* Qty */}
                 <div className="w-20 shrink-0">
-                  <label className="text-xs font-medium text-muted-foreground">Qty</label>
+                  <label htmlFor={`qty-${l.key}`} className="text-xs font-medium text-muted-foreground">Qty</label>
                   <input
+                    id={`qty-${l.key}`}
                     type="number"
                     min={1}
                     value={sel.qty}
-                    onChange={(e) => updateSelection(l.node.id, { qty: Math.max(1, Number(e.target.value) || 1) })}
+                    onChange={(e) => updateSelection(l.key, { qty: Math.max(1, Number(e.target.value) || 1) })}
                     className="w-full h-10 px-2.5 rounded-xl border border-border bg-card text-foreground text-sm text-center focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
                 {/* Amount */}
                 <div className="w-24 shrink-0 text-right">
-                  <label className="text-xs font-medium text-muted-foreground block">Amount</label>
+                  <span className="text-xs font-medium text-muted-foreground block">Amount</span>
                   <div className="h-10 flex items-center justify-end text-sm font-bold text-foreground tabular-nums">
                     {amt != null ? formatRupees(amt) : '—'}
                   </div>
                 </div>
               </div>
 
+              {/* Per-sq.ft. tiers: amount = rate × L × W × qty, so ask for the size. */}
+              {sqft && (
+                <SqFtSizePicker
+                  sel={sel}
+                  line={l}
+                  onChange={(patch) => updateSelection(l.key, patch)}
+                />
+              )}
+
               {/* Admin-only: quote-scoped margin override. Staff never see
                   margins — they'd expose the purchase price. */}
               {isAdmin && rawPrice && (
                 <div className="flex items-center gap-2 mt-2.5 pt-2.5 border-t border-dashed border-border">
                   <label
-                    htmlFor={`margin-${l.node.id}`}
+                    htmlFor={`margin-${l.key}`}
                     className="text-xs font-semibold text-muted-foreground shrink-0"
                   >
                     Margin
                   </label>
                   <input
-                    id={`margin-${l.node.id}`}
+                    id={`margin-${l.key}`}
                     type="number"
                     inputMode="decimal"
                     value={sel.marginPct}
-                    onChange={(e) => updateSelection(l.node.id, { marginPct: e.target.value })}
+                    onChange={(e) => updateSelection(l.key, { marginPct: e.target.value })}
                     className="w-16 h-8 px-1.5 rounded-lg border border-border bg-card text-foreground text-sm font-bold text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
                     aria-label={`Margin percent for ${l.node.name} (this quote only)`}
                   />
                   <span className="text-sm font-bold text-foreground">%</span>
                   <span className="text-xs text-muted-foreground truncate">
                     Cost {formatRupees(rawPrice.rate)} → {formatRupees(applyMargin(rawPrice.rate, linePct))}
+                    {sqft ? '/sq.ft' : ''}
                     <span className="hidden sm:inline"> · this quote only</span>
                   </span>
                 </div>
+              )}
+
+              {/* Same product again with another tier (SF + TEXTURE) or size. */}
+              {canRepeat && (
+                <button
+                  type="button"
+                  onClick={() => addAnotherLine(l.key)}
+                  className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline min-tap"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  {sqft ? 'Add another price or size' : 'Add another price'}
+                </button>
               )}
             </div>
           );
@@ -557,9 +567,112 @@ function ReviewView({
           Share image
         </Button>
       </div>
-      {!canGenerate && (
-        <p className="text-xs text-muted-foreground text-center -mt-2">
-          Add a client name to generate the quote.
+      {blocker && (
+        <p className="text-xs text-muted-foreground text-center -mt-2">{blocker}</p>
+      )}
+    </div>
+  );
+}
+
+// ── Size picker for per-sq.ft. lines ────────────────────────────────
+const sameSize = (a: SizeFt | null, b: SizeFt) =>
+  !!a && a.length === b.length && a.width === b.width;
+
+function SqFtSizePicker({
+  sel,
+  line,
+  onChange,
+}: {
+  sel: Selection;
+  line: QuoteLine;
+  onChange: (patch: Partial<Selection>) => void;
+}) {
+  const current = parseSize(sel);
+  // The variety's own sheet size (if saved) leads, then the common sizes.
+  const saved = nodeSizeFt(sel.node);
+  const chips = [...(saved ? [saved] : []), ...SQFT_SIZE_PRESETS].filter(
+    (c, i, all) => all.findIndex((o) => sameSize(o, c)) === i
+  );
+  const custom = sel.customSize || (current != null && !chips.some((c) => sameSize(current, c)));
+  const piece = linePieceRate(line);
+
+  const chipClass = (active: boolean) =>
+    cn(
+      'h-11 min-w-[3.5rem] flex-auto px-2 rounded-xl border text-sm font-semibold tabular-nums transition-colors',
+      active
+        ? 'bg-primary border-primary text-primary-foreground'
+        : 'bg-card border-border text-foreground hover:bg-muted'
+    );
+
+  return (
+    <div className="mt-3">
+      <p className="text-xs font-medium text-muted-foreground mb-1.5">
+        Size (ft) · priced per sq.ft.
+      </p>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Size for ${sel.node.name}`}>
+        {chips.map((c) => {
+          const active = !custom && sameSize(current, c);
+          return (
+            <button
+              key={`${c.length}x${c.width}`}
+              type="button"
+              aria-pressed={active}
+              onClick={() =>
+                onChange({ sizeL: String(c.length), sizeW: String(c.width), customSize: false })
+              }
+              className={chipClass(active)}
+            >
+              {formatSizeFt(c)}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          aria-pressed={custom}
+          onClick={() => onChange({ customSize: true })}
+          className={chipClass(custom)}
+        >
+          Custom
+        </button>
+      </div>
+
+      {custom && (
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="any"
+            placeholder="Length"
+            aria-label="Length in feet"
+            value={sel.sizeL}
+            onChange={(e) => onChange({ sizeL: e.target.value })}
+            className="w-24 h-11 px-2.5 rounded-xl border border-border bg-card text-foreground text-sm text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <span className="text-sm font-bold text-muted-foreground">×</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="any"
+            placeholder="Width"
+            aria-label="Width in feet"
+            value={sel.sizeW}
+            onChange={(e) => onChange({ sizeW: e.target.value })}
+            className="w-24 h-11 px-2.5 rounded-xl border border-border bg-card text-foreground text-sm text-center tabular-nums focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <span className="text-sm font-medium text-muted-foreground">ft</span>
+        </div>
+      )}
+
+      {current && line.price && piece != null ? (
+        <p className="text-xs text-muted-foreground mt-2 tabular-nums">
+          {formatRupees(line.price.rate)}/sq.ft × {areaSqFt(current)} sq.ft ={' '}
+          <span className="font-bold text-foreground">{formatRupees(piece)}</span> each
+        </p>
+      ) : (
+        <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mt-2">
+          Pick a size to price this line.
         </p>
       )}
     </div>

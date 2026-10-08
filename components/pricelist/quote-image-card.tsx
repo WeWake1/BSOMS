@@ -1,6 +1,13 @@
 import { forwardRef } from 'react';
-import { formatSize } from '@/lib/pricelist-utils';
-import { BUSINESS_NAME, lineAmount, type QuoteLine, type QuoteMeta } from '@/lib/quote-export';
+import { areaSqFt, formatSize, formatSizeFt } from '@/lib/pricelist-utils';
+import {
+  BUSINESS_NAME,
+  isSqFtLine,
+  lineAmount,
+  linePieceRate,
+  type QuoteLine,
+  type QuoteMeta,
+} from '@/lib/quote-export';
 
 const inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 });
 const rupees = (n: number) => `₹${inr.format(n)}`;
@@ -63,9 +70,11 @@ export const QuoteImageCard = forwardRef<HTMLDivElement, QuoteImageCardProps>(
           </div>
           {lines.map((l, i) => {
             const amt = lineAmount(l);
-            const size = formatSize(l.node);
+            const sqftSize = isSqFtLine(l) ? l.size : null;
+            const piece = linePieceRate(l);
+            const size = sqftSize ? `${formatSizeFt(sqftSize)} ft` : formatSize(l.node);
             return (
-              <div key={l.node.id} style={{ display: 'flex', padding: '11px 14px', borderTop: i === 0 ? 'none' : '1px solid #f1f5f9', alignItems: 'center' }}>
+              <div key={l.key} style={{ display: 'flex', padding: '11px 14px', borderTop: i === 0 ? 'none' : '1px solid #f1f5f9', alignItems: 'center' }}>
                 <div style={{ flex: 1, paddingRight: 8 }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{l.node.name}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>
@@ -74,8 +83,11 @@ export const QuoteImageCard = forwardRef<HTMLDivElement, QuoteImageCardProps>(
                   </div>
                   {l.price && (
                     <div style={{ fontSize: 11, color: '#64748b', marginTop: 1 }}>
+                      {l.price.label && l.price.label !== 'Standard' ? `${l.price.label} · ` : ''}
                       {rupees(l.price.rate)}{l.price.unit ? ` / ${l.price.unit}` : ''}
-                      {l.price.label && l.price.label !== 'Standard' ? ` · ${l.price.label}` : ''}
+                      {sqftSize && piece != null
+                        ? ` × ${inr.format(areaSqFt(sqftSize))} sq.ft = ${rupees(piece)} each`
+                        : ''}
                     </div>
                   )}
                 </div>

@@ -104,6 +104,8 @@ export interface PricelistNode {
   thickness: number | null;
   unit: string | null;
   tags: string[];
+  /** Optional internal notes — shown in-app only, never on customer output. */
+  description: string | null;
   supplier_id: string | null;
   /** Optional external link (e.g. Google Drive catalogue / designs). */
   catalogue_url: string | null;
@@ -138,11 +140,12 @@ export type Database = {
       };
       pricelist_nodes: {
         Row: PricelistNode;
-        Insert: Omit<PricelistNode, 'id' | 'created_at' | 'updated_at' | 'tags'> & {
+        Insert: Omit<PricelistNode, 'id' | 'created_at' | 'updated_at' | 'tags' | 'description'> & {
           id?: string;
           created_at?: string;
           updated_at?: string;
           tags?: string[];
+          description?: string | null;
         };
         Update: Partial<Omit<PricelistNode, 'id' | 'created_at'>>;
       };

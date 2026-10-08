@@ -46,9 +46,14 @@ export function isValidIndianMobile(val: string | null | undefined): boolean {
   return !!val && /^\d{10}$/.test(val);
 }
 
-export function buildWhatsAppUrl(mobile: string | null | undefined): string | null {
+/** wa.me chat link for a 10-digit Indian mobile, optionally with a pre-typed message. */
+export function buildWhatsAppUrl(
+  mobile: string | null | undefined,
+  text?: string
+): string | null {
   if (!isValidIndianMobile(mobile)) return null;
-  return `https://wa.me/+91${mobile}`;
+  const url = `https://wa.me/91${mobile}`;
+  return text ? `${url}?text=${encodeURIComponent(text)}` : url;
 }
 
 export function formatMobileDisplay(val: string | null | undefined): string {

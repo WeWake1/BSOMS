@@ -5,6 +5,7 @@ import { Drawer } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
+import { isPerSqFt } from '@/lib/pricelist-utils';
 import type { PricelistNodeWithRelations, PricelistSupplier } from '@/types/database';
 
 export type PricelistLevel = 'category' | 'brand' | 'variety';
@@ -80,6 +81,7 @@ export function NodeFormSheet({
   const [width, setWidth] = useState('');
   const [unit, setUnit] = useState('');
   const [tags, setTags] = useState('');
+  const [description, setDescription] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [catalogueUrl, setCatalogueUrl] = useState('');
   const [tiers, setTiers] = useState<TierDraft[]>([{ label: '', rate: '', unit: '', margin: '' }]);
@@ -101,6 +103,7 @@ export function NodeFormSheet({
       setWidth(node.width?.toString() ?? '');
       setUnit(node.unit ?? '');
       setTags((node.tags ?? []).join(', '));
+      setDescription(node.description ?? '');
       setSupplierId(node.supplier_id ?? '');
       setCatalogueUrl(node.catalogue_url ?? '');
       setTiers(
@@ -119,6 +122,7 @@ export function NodeFormSheet({
       setWidth('');
       setUnit('');
       setTags('');
+      setDescription('');
       setSupplierId('');
       setCatalogueUrl('');
       setTiers([{ label: '', rate: '', unit: '', margin: '' }]);
@@ -182,6 +186,7 @@ export function NodeFormSheet({
       thickness: null,
       unit: isVariety ? unit.trim() || null : null,
       tags: isVariety ? tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+      description: isVariety ? description.trim() || null : null,
       supplier_id: isVariety ? supplierId || null : null,
       catalogue_url: isVariety ? catalogueUrl.trim() || null : null,
     };
@@ -231,6 +236,8 @@ export function NodeFormSheet({
   };
 
   const title = mode === 'edit' ? `Edit ${meta.label}` : `Add ${meta.label}`;
+  // Any per-sq.ft. tier means quotes multiply by area — say so at the size field.
+  const hasSqFtTier = tiers.some((t) => isPerSqFt(t.unit));
 
   return (
     <Drawer isOpen={isOpen} onClose={onClose} title={title}>
@@ -260,6 +267,24 @@ export function NodeFormSheet({
               hint="Short labels shown as badges — e.g. Waterproof, Semi-WP."
             />
 
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="variety-description" className="text-sm font-medium text-foreground">
+                Description{' '}
+                <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <textarea
+                id="variety-description"
+                rows={3}
+                placeholder="Finish, grade, usage, anything the team should know…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full p-3.5 rounded-xl border border-border bg-card text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none min-tap placeholder:text-muted-foreground"
+              />
+              <p className="text-xs text-muted-foreground">
+                Internal only — shown on the product page, never on quotes or shared price lists.
+              </p>
+            </div>
+
             <div>
               <p className="text-sm font-medium text-foreground mb-1.5">
                 Sheet size{' '}
@@ -283,6 +308,11 @@ export function NodeFormSheet({
                   onChange={(e) => setWidth(e.target.value)}
                 />
               </div>
+              <p className={`text-xs mt-1.5 ${hasSqFtTier ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                {hasSqFtTier
+                  ? 'Per sq.ft. prices: quotes multiply rate × length × width × qty. This size is pre-selected in quotes — you can still pick 8×4, 7×3, etc. per quote.'
+                  : 'For per sq.ft. prices, this becomes the default size in quotes.'}
+              </p>
             </div>
 
             <Input
